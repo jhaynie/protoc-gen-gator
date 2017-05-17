@@ -1,0 +1,20 @@
+package: github.com/jhaynie/protoc-gen-gator
+import:
+- package: github.com/go-sql-driver/mysql
+  version: ^1.3.0
+- package: github.com/golang/protobuf
+  subpackages:
+  - proto
+  - protoc-gen-go/descriptor
+  - protoc-gen-go/plugin
+  - ptypes
+  - ptypes/timestamp
+- package: github.com/jhaynie/dbgen
+  version: ^0.0.10
+  subpackages:
+  - pkg/orm
+- package: github.com/serenize/snaker
+- package: github.com/jhaynie/graphql
+- package: golang.org/x/tools
+  subpackages:
+  - cmd/goimports

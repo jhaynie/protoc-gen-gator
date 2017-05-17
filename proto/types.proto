@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package proto;
+
+message ID {
+}
+
+message DateTime {
+}
+
+message Checksum {
+}
+
+message UID {
+}

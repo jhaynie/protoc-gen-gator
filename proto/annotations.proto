@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package proto;
+
+import "google/protobuf/descriptor.proto";
+
+message SQLIndex {
+   string name = 1;
+   string fields = 2;
+   string type = 3;
+}
+
+message SQLAssociation {
+  string table = 1;
+  string pk = 2;
+  string fk = 3;
+  string name = 4;
+}
+
+message SQLFieldOptions {
+  bool unique = 1;
+  bool index = 2;
+  string indextype = 3;
+  string type = 4;
+  bool primarykey = 5;
+  bool notnull = 6;
+  string name = 7;
+  string default = 8;
+}
+
+message SQLMessageOptions {
+  SQLIndex index = 1;
+  SQLIndex index2 = 2;
+  SQLIndex index3 = 3;
+  SQLIndex index4 = 4;
+  SQLIndex index5 = 5;
+  SQLIndex index6 = 6;
+  SQLIndex index7 = 7;
+  SQLIndex index8 = 8;
+  SQLIndex index9 = 9;
+  string name = 10;
+  SQLAssociation belongs_to = 20;
+  SQLAssociation belongs_to2 = 21;
+  SQLAssociation belongs_to3 = 22;
+  SQLAssociation belongs_to4 = 23;
+  SQLAssociation belongs_to5 = 24;
+  SQLAssociation belongs_to6 = 25;
+  SQLAssociation belongs_to7 = 26;
+  SQLAssociation belongs_to8 = 27;
+  SQLAssociation belongs_to9 = 28;
+  SQLAssociation belongs_to10 = 29;
+  SQLAssociation has_one = 30;
+  SQLAssociation has_one2 = 31;
+  SQLAssociation has_one3 = 32;
+  SQLAssociation has_one4 = 33;
+  SQLAssociation has_one5 = 34;
+  SQLAssociation has_one6 = 35;
+  SQLAssociation has_one7 = 36;
+  SQLAssociation has_one8 = 37;
+  SQLAssociation has_one9 = 38;
+  SQLAssociation has_one10 = 39;
+  SQLAssociation has_many = 40;
+  SQLAssociation has_many2 = 41;
+  SQLAssociation has_many3 = 42;
+  SQLAssociation has_many4 = 43;
+  SQLAssociation has_many5 = 44;
+  SQLAssociation has_many6 = 45;
+  SQLAssociation has_many7 = 46;
+  SQLAssociation has_many8 = 47;
+  SQLAssociation has_many9 = 48;
+  SQLAssociation has_many10 = 49;
+}
+
+message SQLFileOptions {
+  bool lowercaseEnums = 1;
+}
+
+message SQLEnumValueOptions {
+  string value = 1;
+}
+
+extend google.protobuf.FileOptions {
+  SQLFileOptions file = 1034;
+}
+
+extend google.protobuf.FieldOptions {
+  SQLFieldOptions column = 1034;
+}
+
+extend google.protobuf.MessageOptions {
+  SQLMessageOptions table = 1034;
+}
+
+extend google.protobuf.EnumValueOptions {
+  SQLEnumValueOptions enumval = 1034;
+}
