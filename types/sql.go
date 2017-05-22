@@ -7,9 +7,9 @@ import (
 
 	"fmt"
 
-	eproto "github.com/jhaynie/protoc-gen-gator/proto"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
+	eproto "github.com/jhaynie/protoc-gen-gator/proto"
 	"github.com/serenize/snaker"
 )
 
@@ -552,24 +552,36 @@ func (e Entity) IsLowercaseEnums() bool {
 	return lc
 }
 
+func findEnumValue(entity *Entity, e *descriptor.EnumValueDescriptorProto) string {
+	if e.Options != nil {
+		opt, _ := proto.GetExtension(e.Options, eproto.E_Enumval)
+		if o, ok := opt.(*eproto.SQLEnumValueOptions); ok {
+			if o != nil {
+				return o.GetValue()
+			}
+		}
+	}
+	ev := e.GetName()
+	if entity.IsLowercaseEnums() {
+		ev = strings.ToLower(ev)
+	}
+	return ev
+}
+
 // SQLEnum returns the SQL type for Enumeration
 func (p Property) SQLEnum() string {
 	c := strings.Count(p.Field.Descriptor.GetTypeName(), ".")
 	switch c {
 	case 3:
 		{
-			lc := p.Entity.IsLowercaseEnums()
 			i := strings.LastIndex(p.Field.Descriptor.GetTypeName(), ".")
 			n := p.Field.Descriptor.GetTypeName()[i+1:]
 			for _, e := range p.Entity.Message.Descriptor.GetEnumType() {
 				if e.GetName() == n {
 					s := make([]string, 0)
 					for _, v := range e.GetValue() {
-						if lc {
-							s = append(s, "'"+strings.ToLower(v.GetName())+"'")
-						} else {
-							s = append(s, "'"+v.GetName()+"'")
-						}
+						value := findEnumValue(&p.Entity, v)
+						s = append(s, "'"+value+"'")
 					}
 					return "ENUM(" + strings.Join(s, ",") + ")"
 				}

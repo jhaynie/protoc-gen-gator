@@ -22,6 +22,10 @@ func GenerateSQL(entity *types.Entity) ([]byte, error) {
 func (g *sqlgenerator) Generate(scheme string, file *types.File, entities []types.Entity) ([]*types.Generation, error) {
 	var out bytes.Buffer
 	for _, entity := range entities {
+		// don't generate this table since Goose will automatically create
+		if entity.SQLTableName() == "GooseDbVersion" {
+			continue
+		}
 		buf, err := GenerateSQL(&entity)
 		if err != nil {
 			return nil, err

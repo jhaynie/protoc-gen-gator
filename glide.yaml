@@ -9,12 +9,12 @@ import:
   - protoc-gen-go/plugin
   - ptypes
   - ptypes/timestamp
-- package: github.com/jhaynie/dbgen
-  version: ^0.0.10
-  subpackages:
-  - pkg/orm
 - package: github.com/serenize/snaker
 - package: github.com/jhaynie/graphql
 - package: golang.org/x/tools
   subpackages:
   - cmd/goimports
+- package: github.com/jhaynie/go-gator
+  version: ~1.0.1
+  subpackages:
+  - orm

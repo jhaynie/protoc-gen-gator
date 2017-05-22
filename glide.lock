@@ -1,5 +1,5 @@
-hash: ef2a1111740732f31e5426214112f5d5efd6d42bdee409d8b11f50032e1294ce
-updated: 2017-05-07T15:15:18.422527618-07:00
+hash: 4238bc2765ad4ea2281903cffe965aad8ed2228344a95151829cba9775b6ceca
+updated: 2017-05-16T19:30:48.741455091-07:00
 imports:
 - name: github.com/go-sql-driver/mysql
   version: a0583e0143b1624142adab07e0e97fe106d99561
@@ -13,16 +13,16 @@ imports:
   - ptypes/any
   - ptypes/duration
   - ptypes/timestamp
-- name: github.com/jhaynie/dbgen
-  version: 64e2a4b3477ec26308e07a4edf4521efd21e62b5
+- name: github.com/jhaynie/go-gator
+  version: 43a74c77286141b117e64c1c18ea53e4466a2ebc
   subpackages:
-  - pkg/orm
+  - orm
 - name: github.com/jhaynie/graphql
   version: 1fc7c7cacaacc936f387ee92c2350f7d8644b15b
 - name: github.com/serenize/snaker
   version: 1c7f65329f6524115af8ca01ab604c00cddf5558
 - name: golang.org/x/tools
-  version: 9862c35773a14ca029b7da49c410111ba13830a0
+  version: bf4b54dc687c73b6ef63de8b8abf0ad3951e3edc
   subpackages:
   - cmd/goimports
 testImports: []

@@ -12,7 +12,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
-	"github.com/jhaynie/dbgen/pkg/orm"
+	"github.com/jhaynie/go-gator/orm"
 	"github.com/jhaynie/protoc-gen-gator/generator"
 	"github.com/jhaynie/protoc-gen-gator/generators/sql"
 	eproto "github.com/jhaynie/protoc-gen-gator/proto"
@@ -65,7 +65,7 @@ func findEnum(p *types.Property) (string, *descriptor.EnumDescriptorProto) {
 	return "", nil
 }
 
-func toTestData(p *types.Property) string {
+func toTestData(p *types.Property, forUpdate bool) string {
 	if isTimestamp(p) {
 		return "ToTimestampNow()"
 	}
@@ -87,7 +87,8 @@ func toTestData(p *types.Property) string {
 			}
 			// trim to max length of string if provided
 			l := toLength(p.SQLType())
-			id := orm.UUID()
+			// create a stable value so that subsequent generations will diff the same
+			id := orm.HashStrings(p.Entity.Name, p.Name, fmt.Sprintf("%v", forUpdate))
 			if len(id) > l {
 				id = id[0:l]
 			}
@@ -95,23 +96,38 @@ func toTestData(p *types.Property) string {
 		}
 	case "int32":
 		{
-			return fmt.Sprintf("int32(%d)", orm.RandUID())
+			if forUpdate {
+				return "int32(320)"
+			}
+			return "int32(32)"
 		}
 	case "int64":
 		{
-			return fmt.Sprintf("int64(%d)", orm.RandUID())
+			if forUpdate {
+				return "int64(640)"
+			}
+			return "int64(64)"
 		}
 	case "bool":
 		{
+			if forUpdate {
+				return "false"
+			}
 			return "true"
 		}
 	case "float32":
 		{
-			return fmt.Sprintf("float32(%d)", orm.RandUID())
+			if forUpdate {
+				return "float32(32.1)"
+			}
+			return "float32(3.2)"
 		}
 	case "float64":
 		{
-			return fmt.Sprintf("float64(%d)", orm.RandUID())
+			if forUpdate {
+				return "float64(64.1)"
+			}
+			return "float64(6.4)"
 		}
 	}
 	return t
@@ -599,6 +615,10 @@ const goTemplate = `
 {{- $tnt := tick $tn }}
 package {{.Package}}
 
+import (
+	"github.com/jhaynie/go-gator/orm"
+)
+
 {{ GoEnumDefinitions . }}
 
 // {{$m}} table
@@ -939,15 +959,31 @@ func DeleteAll{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}
 {{- if .HasPrimaryKey }}
 
 // DBDelete will delete this {{$m}} record in the database
-func (t *{{$m}}) DBDelete(ctx context.Context, db *sql.DB) (sql.Result, error) {
+func (t *{{$m}}) DBDelete(ctx context.Context, db *sql.DB) (bool, error) {
 	q := "DELETE FROM {{$tnt}} WHERE {{$pkc}} = ?"
-	return db.ExecContext(ctx, q, {{ ConvertFromSQL $pkp }}(t.{{$pkp.Field.Name}}))
+	r, err := db.ExecContext(ctx, q, {{ ConvertFromSQL $pkp }}(t.{{$pkp.Field.Name}}))
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	c, _ := r.RowsAffected()
+	return c > 0, nil
 }
 
 // DBDeleteTx will delete this {{$m}} record in the database using the provided transaction
-func (t *{{$m}}) DBDeleteTx(ctx context.Context, tx *sql.Tx) (sql.Result, error) {
+func (t *{{$m}}) DBDeleteTx(ctx context.Context, tx *sql.Tx) (bool, error) {
 	q := "DELETE FROM {{$tnt}} WHERE {{$pkc}} = ?"
-	return tx.ExecContext(ctx, q, {{ ConvertFromSQL $pkp }}(t.{{$pkp.Field.Name}}))
+	r, err := tx.ExecContext(ctx, q, {{ ConvertFromSQL $pkp }}(t.{{$pkp.Field.Name}}))
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	c, _ := r.RowsAffected()
+	return c > 0, nil
 }
 
 // DBUpdate will update the {{$m}} record in the database
@@ -1392,6 +1428,10 @@ const goTestTemplate = `
 {{- $tnt := tick $tn }}
 package {{.Package}}
 
+import (
+	"github.com/jhaynie/go-gator/orm"
+)
+
 func TestCreate{{$m}}Table(t *testing.T) {
 	tx, err := GetDatabase().Begin()
 	if err != nil {
@@ -1412,11 +1452,12 @@ func TestCreate{{$m}}Table(t *testing.T) {
 func TestCreate{{$m}}Delete(t *testing.T) {
 	r := &{{$m}}{
 		{{- range $i, $col := $columns }}
-		{{ $col.Field.Name }}: {{ GoTestData $col }},
+		{{ $col.Field.Name }}: {{ GoTestData $col false }},
 		{{- end }}
 	}
 	ctx := context.Background()
 	db := GetDatabase()
+	DeleteAll{{$tnp}}(ctx, db)
 	result, err := r.DBCreate(ctx, db)
 	if err != nil {
 		t.Fatal(err)
@@ -1449,8 +1490,6 @@ func TestCreate{{$m}}Delete(t *testing.T) {
 		t.Fatalf("expected found primary key to be %v but was %v", r.{{$pkp.Name}}, found.{{$pkp.Name}})
 	}
 	if orm.Stringify(r) != orm.Stringify(found) {
-		t.Log("r=>", orm.Stringify(r))
-		t.Log("found=>", orm.Stringify(found))
 		t.Fatalf("expected r to be found but was different")
 	}
 	results, err := Find{{.TableNamePlural}}(ctx, db)
@@ -1485,7 +1524,7 @@ func TestCreate{{$m}}Delete(t *testing.T) {
 	{{- range $i, $col := $columns }}
 	{{- if not $col.PrimaryKey }}
 	{{- if not $col.Nullable }}
-	r.Set{{ $col.Name }}({{ GoTestData $col }})
+	r.Set{{ $col.Name }}({{ GoTestData $col true }})
 	{{ addctx "nullable" 1}}
 	{{- end }}
 	{{- end }}
@@ -1526,11 +1565,12 @@ func TestCreate{{$m}}Delete(t *testing.T) {
 func TestCreate{{$m}}DeleteTx(t *testing.T) {
 	r := &{{$m}}{
 		{{- range $i, $col := $columns }}
-		{{ $col.Field.Name }}: {{ GoTestData $col }},
+		{{ $col.Field.Name }}: {{ GoTestData $col false }},
 		{{- end }}
 	}
 	ctx := context.Background()
 	db := GetDatabase()
+	DeleteAll{{$tnp}}(ctx, db)
 	tx, err := db.Begin()
 	if err != nil {
 		t.Fatal(err)
@@ -1567,8 +1607,6 @@ func TestCreate{{$m}}DeleteTx(t *testing.T) {
 		t.Fatalf("expected found primary key to be %v but was %v", r.{{$pkp.Name}}, found.{{$pkp.Name}})
 	}
 	if orm.Stringify(r) != orm.Stringify(found) {
-		t.Log("r=>", orm.Stringify(r))
-		t.Log("found=>", orm.Stringify(found))
 		t.Fatalf("expected r to be found but was different")
 	}
 	results, err := Find{{.TableNamePlural}}Tx(ctx, tx)
@@ -1604,13 +1642,12 @@ func TestCreate{{$m}}DeleteTx(t *testing.T) {
 	{{- range $i, $col := $columns }}
 	{{- if not $col.PrimaryKey }}
 	{{- if not $col.Nullable }}
-	r.Set{{ $col.Name }}({{ GoTestData $col }})
+	r.Set{{ $col.Name }}({{ GoTestData $col true }})
 	{{ addctx "nullable" 1}}
 	{{- end }}
 	{{- end }}
 	{{- end }}
 	{{- if hasctx "nullable" }}
-	// here 2
 	a, b, err = r.DBUpsertTx(ctx, tx)
 	if err != nil {
 		t.Fatal(err)
@@ -1653,17 +1690,16 @@ func TestCreate{{$m}}DeleteTx(t *testing.T) {
 const goTestMainTemplate = `package {{ .PkgName }}
 
 import (
-	"testing"
+	"database/sql"
+	"flag"
 	"fmt"
 	"os"
-	"flag"
-	"time"
-	"database/sql"
+	"testing"
 
-	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/jhaynie/dbgen/pkg/orm"
+	"github.com/jhaynie/go-gator/orm"
 )
+
 var (
 	database string
 	username string
@@ -1677,13 +1713,6 @@ var (
 func init() {
 	var defuser = "root"
 	var defdb = fmt.Sprintf("test_%s", orm.UUID()[0:9])
-	circle := os.Getenv("CIRCLECI")
-	if circle == "true" {
-		// when running on circle ci use the setup test db
-		defuser = "ubuntu"
-		defdb = "circle_test"
-		createdb = false
-	}
 	flag.StringVar(&username, "username", defuser, "database username")
 	flag.StringVar(&password, "password", "", "database password")
 	flag.StringVar(&hostname, "hostname", "localhost", "database hostname")

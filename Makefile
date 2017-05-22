@@ -3,4 +3,4 @@ build:
 	protoc -I. -I`pwd`/proto \
 	-I$(GOPATH)/src \
 	-I$(GOPATH)/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
-	--gator_out=sql,graphql:output test.proto
+	--gator_out=golang,sql,graphql:output test.proto
