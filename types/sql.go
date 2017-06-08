@@ -48,6 +48,17 @@ func (a SQLAssociation) IsArrayType() bool {
 	return a.Type == SQLAssocationHasMany
 }
 
+// GenerateSQL returns true if the SQL DDL should be generated for this entity
+func (e Entity) GenerateSQL() bool {
+	if e.Message.Descriptor.Options != nil {
+		ex, _ := proto.GetExtension(e.Message.Descriptor.GetOptions(), eproto.E_Table)
+		if s, ok := ex.(*eproto.SQLMessageOptions); ok {
+			return !s.GetNogenerate()
+		}
+	}
+	return true
+}
+
 // HasSQLAssociations returns true if there are one or more associations
 func (e Entity) HasSQLAssociations() bool {
 	a := e.SQLAssociations()

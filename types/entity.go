@@ -6,8 +6,8 @@ import (
 	"strings"
 	"text/template"
 
-	eproto "github.com/jhaynie/protoc-gen-gator/proto"
 	"github.com/golang/protobuf/proto"
+	eproto "github.com/jhaynie/protoc-gen-gator/proto"
 	"github.com/serenize/snaker"
 )
 
@@ -195,7 +195,7 @@ func (e Entity) ColumnWidth() int {
 		}
 	}
 	// space + backticks for column names
-	return max + 3
+	return max + 4
 }
 
 // ColumnCount returns the number of columns in the entity

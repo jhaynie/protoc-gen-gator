@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/jhaynie/protoc-gen-gator/types"
 )
@@ -35,6 +36,7 @@ func Generate(gentype []string, file *types.File) ([]*types.Generation, error) {
 		e := types.NewEntity(file.Package, file, message)
 		entities = append(entities, e)
 	}
+	sort.Slice(entities, func(i, j int) bool { return entities[i].Name < entities[j].Name })
 	results := make([]*types.Generation, 0)
 	for _, t := range gentype {
 		generator := generators2[t]

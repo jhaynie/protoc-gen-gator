@@ -69,6 +69,7 @@ message SQLMessageOptions {
   SQLAssociation has_many8 = 47;
   SQLAssociation has_many9 = 48;
   SQLAssociation has_many10 = 49;
+  bool nogenerate = 50;
 }
 
 message SQLFileOptions {

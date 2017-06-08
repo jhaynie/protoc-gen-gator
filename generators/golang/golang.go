@@ -133,11 +133,16 @@ func toTestData(p *types.Property, forUpdate bool) string {
 	return t
 }
 
+func toGoEnumString(property *types.Property) string {
+	en, _ := findEnum(property)
+	return "enum" + en + "ToString"
+}
+
 func toGoEnumDefinitions(entity types.Entity) string {
 	var buf bytes.Buffer
 	for _, e := range entity.Message.Descriptor.EnumType {
 		names := make([]string, 0)
-		n := entity.Name + "_" + strings.Replace(e.GetName(), entity.Name, "", 1)
+		n := entity.Name + "_" + e.GetName()
 		for _, v := range e.Value {
 			ev := findEnumValue(&entity, v)
 			names = append(names, e.GetName()+"_"+v.GetName()+" "+n+" = \""+ev+"\"")
@@ -154,14 +159,12 @@ func toGoEnumDefinitions(entity types.Entity) string {
 		buf.WriteString("\t}\n")
 		buf.WriteString("\treturn v.String()\n")
 		buf.WriteString("}\n\n")
-		buf.WriteString("func to" + n + "(v string) *" + n + " {\n")
-		ename := strings.Replace(n, "_", "", 1)
+		buf.WriteString("func to" + e.GetName() + "(v string) *" + n + " {\n")
 		buf.WriteString("var ev *" + n + "\n")
 		buf.WriteString("\tswitch v {\n")
 		for _, v := range e.Value {
 			buf.WriteString("\t\tcase ")
 			ev := findEnumValue(&entity, v)
-			eval := ename + "_" + v.GetName()
 			if ev != v.GetName() && strings.ToLower(ev) != strings.ToLower(v.GetName()) {
 				buf.WriteString("\"" + ev + "\", \"" + v.GetName() + "\", \"" + strings.ToLower(v.GetName()) + "\"")
 			} else {
@@ -172,7 +175,7 @@ func toGoEnumDefinitions(entity types.Entity) string {
 				}
 			}
 			buf.WriteString(": {\n")
-			buf.WriteString("\t\t\tv := " + eval + "\n")
+			buf.WriteString("\t\t\tv := " + e.GetName() + "_" + strings.ToUpper(v.GetName()) + "\n")
 			buf.WriteString("\t\t\tev = &v\n")
 			buf.WriteString("\t\t}\n")
 		}
@@ -200,7 +203,8 @@ func toGoType(property *types.Property) string {
 	}
 	t := property.Field.Type
 	if property.IsEnumeration() {
-		t = property.Entity.Name + "_" + snaker.SnakeToCamel(property.Field.Descriptor.GetName())
+		n := strings.Split(property.Field.Descriptor.GetTypeName(), ".")
+		t = n[len(n)-2] + "_" + n[len(n)-1]
 	}
 	if property.Nullable {
 		return "*" + t
@@ -215,8 +219,10 @@ func toGoTypeWithoutPointer(property *types.Property) string {
 	if property.IsEnumeration() {
 		_, en := findEnum(property)
 		if en != nil {
-			n := strings.Replace(en.GetName(), property.Entity.Name, "", 1)
-			return property.Entity.Name + "_" + n
+			// n := strings.Replace(en.GetName(), property.Entity.Name, "", 1)
+			// return property.Entity.Name + "_" + n
+			n := strings.Split(property.Field.Descriptor.GetTypeName(), ".")
+			return property.Entity.Name + "_" + snaker.SnakeToCamel(n[len(n)-1])
 		}
 	}
 	return property.Field.Type
@@ -319,7 +325,9 @@ func toGetterValue(property *types.Property, varname string, stringer bool) stri
 func toSetterValue(property *types.Property, clname string, varname string, stringer bool) string {
 	if property.IsEnumeration() {
 		if stringer {
-			n := property.Entity.Name + "_" + property.Name
+			n, _ := findEnum(property)
+			// n := property.Entity.Name + "_" + property.Name
+			// n := property.Name
 			if property.Nullable {
 				return clname + "." + property.Field.Name + " = to" + n + "(" + varname + ")"
 			}
@@ -558,6 +566,7 @@ func (g *gogenerator) Generate(scheme string, file *types.File, entities []types
 	fn["GoChecksum"] = toChecksumField
 	fn["GoEnumDefinitions"] = toGoEnumDefinitions
 	fn["GoEnumPointer"] = toGoEnumPointer
+	fn["GoEnumToString"] = toGoEnumString
 	fn["GoTestData"] = toTestData
 	fn["SQL"] = toSQL
 	for _, entity := range entities {
@@ -828,7 +837,7 @@ func (t *{{$m}}) CalculateChecksum() string {
 		{{- range $i, $col := $columns }}
 		{{- if not $col.IsChecksum }}
 		{{- if $col.IsEnumeration }}
-		enum{{$m}}{{$col.Field.Name}}ToString({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }}),
+		{{GoEnumToString $col}}({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }}),
 		{{- else }}
 		orm.ToString(t.{{ $col.Field.Name }}),
 		{{- end }}
@@ -851,7 +860,7 @@ func (t *{{$m}}) DBCreate(ctx context.Context, db *sql.DB) (sql.Result, error) {
 	return db.ExecContext(ctx, q,
 		{{- range $i, $col := $columns }}
 		{{- if $col.IsEnumeration }}
-		{{ ConvertFromSQL $col }}(enum{{$m}}{{$col.Field.Name}}ToString({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
+		{{ ConvertFromSQL $col }}({{GoEnumToString $col}}({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
 		{{- else }}
 		{{ ConvertFromSQL $col }}(t.{{ $col.Field.Name }}),
 		{{- end }}
@@ -872,7 +881,7 @@ func (t *{{$m}}) DBCreateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error)
 	return tx.ExecContext(ctx, q,
 		{{- range $i, $col := $columns }}
 		{{- if $col.IsEnumeration }}
-		{{ ConvertFromSQL $col }}(enum{{$m}}{{$col.Field.Name}}ToString({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
+		{{ ConvertFromSQL $col }}({{GoEnumToString $col}}({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
 		{{- else }}
 		{{ ConvertFromSQL $col }}(t.{{ $col.Field.Name }}),
 		{{- end }}
@@ -895,7 +904,7 @@ func (t *{{$m}}) DBCreateIgnoreDuplicate(ctx context.Context, db *sql.DB) (sql.R
 	return db.ExecContext(ctx, q,
 		{{- range $i, $col := $columns }}
 		{{- if $col.IsEnumeration }}
-		{{ ConvertFromSQL $col }}(enum{{$m}}{{$col.Field.Name}}ToString({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
+		{{ ConvertFromSQL $col }}({{GoEnumToString $col}}({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
 		{{- else }}
 		{{ ConvertFromSQL $col }}(t.{{ $col.Field.Name }}),
 		{{- end }}
@@ -916,7 +925,7 @@ func (t *{{$m}}) DBCreateIgnoreDuplicateTx(ctx context.Context, tx *sql.Tx) (sql
 	return tx.ExecContext(ctx, q,
 		{{- range $i, $col := $columns }}
 		{{- if $col.IsEnumeration }}
-		{{ ConvertFromSQL $col }}(enum{{$m}}{{$col.Field.Name}}ToString({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
+		{{ ConvertFromSQL $col }}({{GoEnumToString $col}}({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
 		{{- else }}
 		{{ ConvertFromSQL $col }}(t.{{ $col.Field.Name }}),
 		{{- end }}
@@ -1000,7 +1009,7 @@ func (t *{{$m}}) DBUpdate(ctx context.Context, db *sql.DB) (sql.Result, error) {
 		{{- range $i, $col := $columns }}
 		{{- if not $col.PrimaryKey }}
 		{{- if $col.IsEnumeration }}
-		{{ ConvertFromSQL $col }}(enum{{$m}}{{$col.Field.Name}}ToString({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
+		{{ ConvertFromSQL $col }}({{GoEnumToString $col}}({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
 		{{- else }}
 		{{ ConvertFromSQL $col }}(t.{{ $col.Field.Name }}),
 		{{- end }}
@@ -1024,7 +1033,7 @@ func (t *{{$m}}) DBUpdateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error)
 		{{- range $i, $col := $columns }}
 		{{- if not $col.PrimaryKey }}
 		{{- if $col.IsEnumeration }}
-		{{ ConvertFromSQL $col }}(enum{{$m}}{{$col.Field.Name}}ToString({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
+		{{ ConvertFromSQL $col }}({{GoEnumToString $col}}({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
 		{{- else }}
 		{{ ConvertFromSQL $col }}(t.{{ $col.Field.Name }}),
 		{{- end }}
@@ -1049,7 +1058,7 @@ func (t *{{$m}}) DBUpsert(ctx context.Context, db *sql.DB) (bool, bool, error) {
 	r, err := db.ExecContext(ctx, q,
 		{{- range $i, $col := $columns }}
 		{{- if $col.IsEnumeration }}
-		{{ ConvertFromSQL $col }}(enum{{$m}}{{$col.Field.Name}}ToString({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
+		{{ ConvertFromSQL $col }}({{GoEnumToString $col}}({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
 		{{- else }}
 		{{ ConvertFromSQL $col }}(t.{{ $col.Field.Name }}),
 		{{- end }}
@@ -1075,7 +1084,7 @@ func (t *{{$m}}) DBUpsertTx(ctx context.Context, tx *sql.Tx) (bool, bool, error)
 	r, err := tx.ExecContext(ctx, q,
 		{{- range $i, $col := $columns }}
 		{{- if $col.IsEnumeration }}
-		{{ ConvertFromSQL $col }}(enum{{$m}}{{$col.Field.Name}}ToString({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
+		{{ ConvertFromSQL $col }}({{GoEnumToString $col}}({{ GoEnumPointer $col -}}t.{{ $col.Field.Name }})),
 		{{- else }}
 		{{ ConvertFromSQL $col }}(t.{{ $col.Field.Name }}),
 		{{- end }}
