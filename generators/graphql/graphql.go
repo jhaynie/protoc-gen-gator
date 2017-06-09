@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"strings"
 
+	"github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/jhaynie/protoc-gen-gator/generator"
 	"github.com/jhaynie/protoc-gen-gator/types"
-	"github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/serenize/snaker"
 )
 
@@ -273,6 +273,10 @@ func (g *gqlgenerator) Generate(scheme string, file *types.File, entities []type
 		Filename: file.Package + "/graphql/index.js",
 		Output:   string(buf),
 	})
+	results = append(results, &types.Generation{
+		Filename: file.Package + "/graphql/_helper.js",
+		Output:   graphqlQueryHelper,
+	})
 	return results, nil
 }
 
@@ -466,9 +470,13 @@ const graphqlResolver = `{{- $e := .Entity -}}
 {{- $hpk := .HasPrimaryKey }}
 {{- $pkp := .PrimaryKeyProperty }}
 {{- $tnt := tick $tn -}}
+{{- $amf := GraphQLAggregationMathFields $e }}
+import * as helper from './_helper';
 import { Filter, Query } from 'gator-js';
 {{- range $i, $a := $e.SQLAssociationsUnique }}
+{{- if ne $a $e.TableNameSingular }}
 import {{ $a }} from './{{ $a }}';
+{{- end }}
 {{- end}}
 
 const columnNames = [
@@ -491,107 +499,11 @@ export default class {{ $e.TableNameSingular }} {
 		{{- end }}
 		Object.keys(props).filter(k => columnNames.indexOf(k) >= 0).forEach(k => this[k] = props[k]);
 	}
-	static hasAssociation(fieldNodes, name) {
-		for (let f = 0; f < fieldNodes.length; f++) {
-			const fieldNode = fieldNodes[f];
-			if (fieldNode.selectionSet && fieldNode.selectionSet.selections && fieldNode.selectionSet.selections.length) {
-				for (let s = 0; s < fieldNode.selectionSet.selections.length; s++) {
-					const selection = fieldNode.selectionSet.selections[s];
-					if (selection.kind == 'Field' && selection.name.value === name) {
-						return selection;
-					}
-				}
-			}
-		}
-		return false;
-	}
-	static annotateEntities(db, fieldNodes, results, filter) {
-		return new Promise (
-			async (resolve, reject) => {
-				try {
-					{{- if $e.HasSQLAssociations }}
-					if (results && !Array.isArray(results)) {
-						results = [results];
-					}
-					if (results && results.length) {
-						{{- range $i, $a := $e.SQLAssociations }}
-						const has{{ $a.Name }} = this.hasAssociation(fieldNodes, '{{ $a.Name }}'), {{ $a.Name }}indices = [];
-						{{- end }}
-						if ({{- range $i, $a := $e.SQLAssociations -}} has{{ $a.Name }} || {{ end -}} false) {
-							const promises = [];
-							results.forEach((r, i) => {
-								{{- range $i, $a := $e.SQLAssociations }}
-								if (has{{ $a.Name }}) {
-									{{if not $a.IsMultiKey -}}
-									const v = r.{{ $a.PrimaryKey }};
-									if (v !== null && v !== undefined) {
-									{{ end -}}
-										promises.push(new Promise(
-											async (resolve, reject) => {
-												try {
-													{{if $a.IsMultiKey -}}
-													const filter = Filter.toJoinWithParams(null, '{{ $a.PrimaryKey }}', '{{ $a.ForeignKey }}', '{{ $a.Table }}', '{{ $tn }}', r);
-													filter.tables = ['{{ $a.Table }}', '{{ $tn }}'];
-													const pr = await {{ SnakeToCamel $a.Table }}.find(db, filter);
-													{{ else -}}
-													const pr = await {{ SnakeToCamel $a.Table }}.findBy{{ SnakeToCamel $a.ForeignKey }}(db, v);
-													{{ end -}}
-													await {{ SnakeToCamel $a.Table }}.annotateEntities(db, [has{{ $a.Name }}], pr);
-													{{- if $a.IsArrayType -}}
-													if (Array.isArray(pr)) {
-														resolve(pr);
-													} else {
-														resolve(pr ? [pr] : []);	
-													}
-													{{ else }}
-													if (Array.isArray(pr)) {
-														resolve(pr && pr.length && pr[0]);
-													} else {
-														resolve(pr);
-													}
-													{{- end }}
-												} catch (ex) {
-													reject(ex);
-												}
-											}
-										));
-									{{if not $a.IsMultiKey -}}
-									} else {
-										promises.push(Promise.resolve());
-									}
-									{{ end -}}
-									{{ $a.Name }}indices.push({r:i,p:promises.length-1});
-								}
-								{{- end }}
-							});
-							if (promises.length) {
-								const presults = await Promise.all(promises);
-								{{- range $i, $a := $e.SQLAssociations }}
-								if (has{{ $a.Name }}) {
-									for (let p = 0; p < {{ $a.Name }}indices.length; p++) {
-										const e = {{ $a.Name }}indices[p];
-										results[e.r].{{ $a.Name }} = presults[e.p];
-									}
-								}
-								{{- end }}
-							}
-						}
-					}
-					{{- else }}
-					// there are no associations
-					{{- end }}
-					if (filter && results && results.length) {
-						results = filter(results);
-					}
-					resolve(results);
-				} catch (ex) {
-					reject(ex);
-				}
-			}
-		);
-	}
 	static columns() {
 		return columnNames;
+	}
+	static table() {
+		return '{{$tn}}';
 	}
 	static getAssociation(name) {
 		{{- if $e.HasSQLAssociations }}
@@ -613,164 +525,80 @@ export default class {{ $e.TableNameSingular }} {
 		{{- end }}
 	}
 	static createQueryResolver(resolvers, db) {
+		const cls = this;
 		{{- $l := len $e.Properties }}
 		{{- range $i, $col := $e.Properties }}
 		{{- if $col.PrimaryKey }}
-		resolvers.Query.{{ lowerfc $e.TableNameSingular }}By{{$col.Name}} = async (root, { {{$col.SQLColumnName}} }, context, info) => {
-			const _r = await this.findBy{{$col.Name}}(db, {{$col.SQLColumnName}});
-			return this.annotateEntities(context.db || db, info.fieldNodes, [_r], res => res[0]);
+		resolvers.Query.{{ lowerfc $e.TableNameSingular }}By{{$col.Name}} = (root, { {{$col.SQLColumnName}} }, context, info) => {
+			return cls.findBy{{$col.Name}}(db, {{$col.SQLColumnName}}, context);
 		};
 		{{- else }}
 		{{- if $col.Index}}
-		resolvers.Query.{{ lowerfc $e.TableNamePlural }}By{{$col.Name}} = async (root, { {{$col.SQLColumnName}}, filter }, context, info) => {
-			return this.annotateEntities(context.db || db, info.fieldNodes, await this.findBy{{$col.Name}}(db, {{$col.SQLColumnName}}, filter));
+		resolvers.Query.{{ lowerfc $e.TableNamePlural }}By{{$col.Name}} = (root, { {{$col.SQLColumnName}}, filter }, context, info) => {
+			const cond = Filter.toWherePrepend(helper.augmentFilter(filter, context, cls), '{{$col.SQLColumnName}}', {{$col.SQLColumnName}});
+			const q = queryPrefix + cond.query;
+			return Query.exec(db, q, cond.params, {{$e.TableNameSingular}}, columnNames);
 		};
 		{{- end }}
 		{{- end }}
 		{{- end }}
-		resolvers.Query.{{ lowerfc $e.TableNamePlural }} = async(root, { filter }, context, info) => {
-			return this.annotateEntities(context.db || db, info.fieldNodes, await this.find(db, filter));
+		const associationResolvers = {
+			{{- if $e.HasSQLAssociations }}
+			{{- range $i, $a := $e.SQLAssociations }}
+			{{ $a.Name }}: async function(obj, args, context, info) {
+				return helper.returnAssociation(cls.getAssociation('{{$a.Name}}').finder, context.db || db, obj.{{$a.PrimaryKey}}, info, context);
+			},
+			{{- end }}
+			{{- end }}
 		};
-		const isValidField = a => !/^__/.test(a);
-		const isAggFn = a => /^(distinct|sum|avg|min|max|count)$/.test(a);
-		resolvers.Query.{{ lowerfc $e.TableNameSingular }} = async(root, { filter }, context, info) => {
-			const detail = {
-				columns: {},
-				groupby: [],
-				joins: [],
-				tables: ['{{$tnt}}'],
-				operations: [],
-				sql: [],
-				nonagg: false
-			};
-			info.fieldNodes.map(n => n.selectionSet).filter(n => n).forEach(node => {
-				node.selections.forEach(s => {
-					if (!isValidField(s.name.value)) {
-						return;
-					}
-					if (isAggFn(s.name.value)) {
-						let fn;
-						detail.op = s.name.value;
-						if (detail.op == 'count') {
-							detail.sql = ['COUNT(*) as count'];
-							detail.operations.push((o, r) => {
-								o.count = r.count;
-								return Promise.resolve();
-							});
-						} else {
-							const fields = s.selectionSet.selections.map(ss => ss.name.value);
-							if (s.name.value === 'distinct') {
-								detail.nonagg = true;
-								const args = s.arguments.map(a => a.value.value);
-								fn = args.length ? args[0] : 'id';
-								detail.sql = ['DISTINCT({{$tnt}}.' + Query.escapeId(fn) + ') as ' + Query.escapeId(fn)];
-								fields.filter(f => isValidField(f) && f !== fn).forEach(f => {
-									detail.sql.push('{{$tnt}}.' + Query.escapeId(f));
-									detail.columns[f] = 1;
-								});
-								detail.operations.push((o, r) => {
-									o.distinct = o.distinct || [];
-									o.distinct.push(r);
-									return Promise.resolve();
-								});
-								detail.columns[fn] = 1;
-							} else {
-								s.selectionSet.selections.forEach(sel => {
-									if (!isValidField(sel.name.value)) {
-										return;
-									}
-									const fn = sel.name.value;
-									detail.sql.push(s.name.value.toUpperCase() + '({{$tnt}}.' + Query.escapeId(fn) + ') as ' + Query.escapeId(fn));
-									detail.operations.push((o, r) => {
-										o[s.name.value] = o[s.name.value] || {};
-										o[s.name.value][fn] = r[fn];
-										return Promise.resolve();
-									});
-								});
-							}
-						}
-					} else {
-						const a = this.getAssociation(s.name.value);
-						detail.nonagg = true;
-						if (a) {
-							detail.tables.push(Query.escapeId(a.table));
-							detail.joins.push('{{$tnt}}.' + Query.escapeId(a.primarykey) + '=' + Query.escapeId(a.table) + '.' + Query.escapeId(a.foreignkey));
-							detail.operations.push((o, r) => {
-								return new Promise (
-									async (resolve, reject) => {
-										try {
-											const res = await a.finder(context.db || db, r[a.primarykey]);
-											const pv = Array.isArray(res) ? res : [res];
-											const an = await a.ref.annotateEntities(context.db || db, [s], pv, res => res[0]);
-											o[s.name.value] = res;
-											resolve();
-										} catch (ex) {
-											reject(ex);
-										}
-									}
-								);
-							});
-							detail.sql.push(Query.escapeId(a.table) + '.' + Query.escapeId(a.foreignkey) + ' as ' + Query.escapeId(a.primarykey));
-							detail.groupby.push(Query.escapeId(a.table) + '.' + Query.escapeId(a.foreignkey));
-						} else {
-							detail.sql.push('{{$tnt}}.' + Query.escapeId(s.name.value) + ' as ' + Query.escapeId(s.name.value));
-							detail.groupby.push('{{$tnt}}.' + Query.escapeId(s.name.value));
-							detail.operations.push((o, r) => {
-								o[s.name.value] = r[s.name.value];
-								return Promise.resolve();
-							});
-						}
-					}
+		resolvers.{{ $e.TableNameSingular }} = Object.assign({}, associationResolvers);
+		resolvers.{{ $e.TableNameSingular }}Optionals = Object.assign({}, associationResolvers);
+		resolvers.{{ $e.TableNameSingular }}Aggregation = Object.assign({
+			distinct: function(obj, args, context, info) {
+				const result = helper.aggregateResult(info, obj);
+				return [result];
+			},
+ 			{{- if len $amf }}
+			sum: function(obj, args, context, info) {
+				return helper.aggregateResult(info, obj);
+			},
+			avg: function(obj, args, context, info) {
+				return helper.aggregateResult(info, obj);
+			},
+			min: function(obj, args, context, info) {
+				return helper.aggregateResult(info, obj);
+			},
+			max: function(obj, args, context, info) {
+				return helper.aggregateResult(info, obj);
+			},
+			{{ end }}
+		}, associationResolvers);
+		resolvers.Query.{{ lowerfc $e.TableNamePlural }} = (root, { filter }, context, info) => {
+			const where = Filter.toWhere(helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'), context, cls));
+			const sql = queryPrefix + where.query;
+			return Query.exec(context.db || db, sql, where.params, {{$e.TableNameSingular}}, columnNames);
+		};
+		resolvers.Query.{{ lowerfc $e.TableNameSingular }} = async (root, { filter }, context, info) => {
+			const aggQuery = helper.findAggregationQuery(info, cls);
+			let sql, params, fn;
+			if (aggQuery) {
+				let a = helper.scopeFilter(filter, '{{$tn}}');
+				aggQuery.agg.forEach(agg => {
+					a = helper.buildAggregationFilter(a, agg.name, '{{ $tn }}', agg.fields, aggQuery.groups, aggQuery.fields, agg.args, columnNames, '{{ $pkc }}');
 				});
-			});
-			if (filter && filter.order && filter.order.length && detail.nonagg) {
-				filter.order.forEach(o => {
-					if (!(o.field in detail.columns)) {
-						detail.sql.push('{{$tnt}}.' + Query.escapeId(o.field));
-					}
-					detail.groupby.push(Query.escapeId(o.field));
-				});
-			}
-			return this.aggregation(db, detail, filter);
-		};
-	}
-	static aggregation(db, detail, filter) {
-		return new Promise (
-			async (resolve, reject) => {
-				try {
-					filter = filter || {};
-					filter.table = '{{$tn}}';
-					if (detail.op !== 'distinct' && detail.groupby.length === 0) {
-						filter.limit = 1;
-					}
-					const cond = Filter.toWhereConditions(filter, detail.joins, detail.groupby.join(', '));
-					const sql = 'SELECT ' + detail.sql.join(', ') + ' FROM ' + detail.tables.join(', ') + ' ' + cond.query;
-					db.query(sql, cond.params, async (err, results) => {
-						if (err) {
-							return reject(err);
-						}
-						if (results && results.length) {
-							const res = [];
-							const p = [];
-							results.forEach(r => {
-								const o = {};
-								res.push(o);
-								detail.operations.forEach(op => p.push(op(o, r)));
-							});
-							try {
-								await Promise.all(p);
-								return resolve(res);
-							} catch (ex) {
-								reject(ex);
-							}
-						}
-						resolve();
-					});
-				} catch (ex) {
-					reject(ex);
+				if (a.count) {
+					fn = (mi, row) => {mi.count = row.count; mi};
 				}
+				const where = Filter.toWhere(helper.augmentFilter(a, context, cls));
+				params = where.params;
+				sql = 'SELECT ' + a.fields.join(', ') + ' FROM ' + a.tables.map(t => Query.escapeId(t)).join(', ') + ' ' + where.query;
+			} else {
+				const where = Filter.toWhere(helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'), context, cls));
+				params = where.params;
+				sql = queryPrefix + where.query;
 			}
-		);
+			return Query.exec(context.db || db, sql, params, {{$e.TableNameSingular}}, fn);
+		};
 	}
 	{{- range $i, $col := $e.Properties }}
 	get{{$col.Name}}() {
@@ -781,12 +609,24 @@ export default class {{ $e.TableNameSingular }} {
 		return this;
 	}
 	{{- if $col.PrimaryKey }}
-	static findByPrimaryKey(db, _{{$col.SQLColumnName}}) {
+	static findByPrimaryKey(db, _{{$col.SQLColumnName}}, filter, context) {
 		return new Promise (
 			async (resolve, reject) => {
 				try {
-					const q = queryPrefix + 'WHERE {{$col.SQLColumnNameWithTick}} = ? LIMIT 1';
-					const r = await Query.exec(db, q, [_{{$col.SQLColumnName}}], {{$e.TableNameSingular}}, columnNames);
+					filter = filter || {};
+					filter.limit = 1;
+					filter.condition = filter.condition || [];
+					filter.condition.push({
+						conditions: [{
+							table: '{{$tn}}',
+							field: '{{$col.SQLColumnName}}',
+							operator: 'EQUAL',
+							value: _{{$col.SQLColumnName}}
+						}]
+					});
+					const where = Filter.toWhere(helper.augmentFilter(filter, context, {{ $e.TableNameSingular }}));
+					const q = queryPrefix + where.query;
+					const r = await Query.exec(db, q, where.params, {{$e.TableNameSingular}}, columnNames);
 					if (r && r.length) {
 						resolve(r[0]);
 					} else {
@@ -798,24 +638,24 @@ export default class {{ $e.TableNameSingular }} {
 			}
 		);
 	}
-	static findBy{{ $col.Name }}(db, _{{$col.SQLColumnName}}) {
-		return {{ $e.TableNameSingular }}.findByPrimaryKey(db, _{{$col.SQLColumnName}});
+	static findBy{{ $col.Name }}(db, _{{$col.SQLColumnName}}, filter, context) {
+		return {{ $e.TableNameSingular }}.findByPrimaryKey(db, _{{$col.SQLColumnName}}, filter, context);
 	}
 	{{- else }}
 	{{- if $col.Index}}
-	static findBy{{ $col.Name }}(db, _{{$col.SQLColumnName}}, filter) {
-		const cond = Filter.toWherePrepend(filter, '{{$col.SQLColumnName}}', _{{$col.SQLColumnName}});
+	static findBy{{ $col.Name }}(db, _{{$col.SQLColumnName}}, filter, context) {
+		const cond = Filter.toWherePrepend(helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'), context, {{ $e.TableNameSingular }}), '{{$col.SQLColumnName}}', _{{$col.SQLColumnName}});
 		const q = queryPrefix + cond.query;
 		return Query.exec(db, q, cond.params, {{$e.TableNameSingular}}, columnNames);
 	}
 	{{- end }}
 	{{- end }}
 	{{- end }}
-	static find(db, filter) {
+	static find(db, filter, context) {
 		let cond;
 		let sql = queryPrefix;
 		if (filter && filter.query && filter.params) {
-			cond = filter;
+			cond = helper.scopeFilter(filter, '{{$tn}}');
 			if (filter.tables) {
 				// add additional tables
 				const tl = filter.tables.filter(t => t !== '{{$tn}}').map(t => Query.escapeId(t))
@@ -824,7 +664,7 @@ export default class {{ $e.TableNameSingular }} {
 				}
 			}
 		} else {
-			cond = Filter.toWhere(filter);
+			cond = Filter.toWhere(helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'), context, {{ $e.TableNameSingular }}));
 		}
 		sql += cond.query;
 		return Query.exec(db, sql, cond.params, {{$e.TableNameSingular}}, columnNames);
@@ -834,4 +674,137 @@ export default class {{ $e.TableNameSingular }} {
 `
 
 const graphqlSchemaTemplate = `
+`
+
+const graphqlQueryHelper = `import {Query, Filter} from 'gator-js';
+
+const isValidField = (a) => !/^__/.test(a);
+const isAgg = (s) => /^(distinct|min|max|sum|avg|count)$/.test(s);
+
+function fieldScope(table, field) {
+	return Query.escapeId(table) + '.' + Query.escapeId(field);
+}
+
+function findFields(info) {
+	return info.fieldNodes.map(fn => fn.selectionSet.selections.map(s => s.name.value).filter(isValidField))[0];
+}
+
+export function buildAggregationFilter(filter, agg, table, fields, grouping, columns, args, all_fields, primary_key) {
+	if (!filter) {
+		filter = {condition:[]};
+	}
+	if (!filter.condition) {
+		filter.condition = [];
+	}
+	filter.tables = [table].concat((grouping || []).map(g => g.table));
+	switch (agg) {
+		case 'count': {
+			filter.fields = ['COUNT(*) as count'];
+			if (columns) {
+				filter.fields = filter.fields.concat(columns.map(c => fieldScope(c.table, c.field) + ' as ' + Query.escapeId(c.field)));
+			}
+			filter.count = true;
+			break;
+		}
+		case 'distinct': {
+			const fn = args.length ? args[0] : primary_key;
+			filter.fields = ['DISTINCT('+  fieldScope(table, fn) + ') as ' + Query.escapeId(fn)];
+			filter.fields = filter.fields.concat(all_fields.filter(a => a !== fn).map(field => fieldScope(table, field) + ' as ' + Query.escape(field)));
+			break;
+		}
+		default: {
+			filter.fields = fields.map(field => agg + '('+ fieldScope(table, field) + ') as ' + Query.escapeId(field));
+			filter.fields = filter.fields.concat(columns.map(c => fieldScope(c.table, c.field) + ' as ' + Query.escape(c.field)));
+			break;
+		}
+	}
+	if (grouping && grouping.length) {
+		const cond = [];
+		const groupby = [];
+		grouping.forEach(group => {
+			filter.fields.push(fieldScope(group.table, group.pk) + ' as ' + Query.escapeId(group.fk));
+			cond.push({
+				table: group.table,
+				field: fieldScope(group.table, group.pk) + ' = ' + fieldScope(table, group.fk),
+				operator: 'JOIN'
+			});
+			groupby.push(fieldScope(table, group.fk));
+		});
+		filter.condition.push({conditions:cond});
+		filter.groupby = groupby.join(', ');
+	}
+	if (columns && columns.length) {
+		filter.groupby = filter.groupby || '';
+		filter.groupby += (filter.groupby ? ',' : '') + columns.map(c => fieldScope(c.table, c.field)).join(', ');
+	}
+	return filter;
+}
+
+export function findAggregationQuery(info, cls) {
+	const ss = info.operation.selectionSet.selections[0].selectionSet;
+	if (ss.selections && ss.selections.length) {
+		const agg = [];
+		const groups = [];
+		const fields = [];
+		ss.selections.forEach(s => {
+			if (isAgg(s.name.value)) {
+				agg.push({
+					table: cls.table(),
+					name: s.name.value,
+					fields: s.selectionSet && s.selectionSet.selections.filter(sel => isValidField(sel.name.value)).map(sel => sel.name.value),
+					args: s.arguments && s.arguments.map(a => a.value.value)
+				});
+			} else {
+				const assoc = cls.getAssociation(s.name.value);
+				if (assoc) {
+					groups.push({
+						table: assoc.table,
+						pk: assoc.foreignkey,
+						fk: assoc.primarykey,
+						fields: s.selectionSet && s.selectionSet.selections.filter(sel => isValidField(sel.name.value)).map(sel => sel.name.value)
+					});
+				} else if (isValidField(s.name.value)) {
+					fields.push({
+						table: cls.table(),
+						field: s.name.value
+					});
+				}
+			}
+		});
+		if (agg.length) {
+			return {agg:agg, groups:groups, fields:fields};
+		}
+	}
+}
+
+export function aggregateResult(info, obj) {
+	const fields = findFields(info);
+	const result = {};
+	fields.forEach(k => result[k] = obj[k]);
+	return result;
+}
+
+// allow a function to be defined to modify / augment the filter before calling the query
+export function augmentFilter(filter, context, cls) {
+	if (context && context.filterAugmentation) {
+		return context.filterAugmentation(filter, context, cls);
+	}
+	return filter;
+}
+
+export async function returnAssociation(finder, db, pk, info, context) {
+	return await finder(db, pk, null, context);
+}
+
+export function scopeFilter(filter, table) {
+	if (filter && filter.condition && filter.condition.length) {
+		filter.condition.forEach(cond => {
+			cond.conditions.forEach(c => {
+				c.table = c.table || table;
+			});
+		});
+	}
+	return filter;
+}
+
 `
