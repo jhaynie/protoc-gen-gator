@@ -36,6 +36,7 @@ type SQLAssociation struct {
 	PrimaryKey string
 	ForeignKey string
 	Name       string
+	Entity     *Entity
 }
 
 // IsMultiKey will return true if the primary key is a multi-key reference
@@ -89,282 +90,423 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 		if s, ok := ex.(*eproto.SQLMessageOptions); ok {
 			a := make([]SQLAssociation, 0)
 			if s.BelongsTo != nil {
+				assocEntity, err := findEntityByName(s.BelongsTo.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
 					Table:      s.BelongsTo.Table,
 					Name:       s.BelongsTo.Name,
 					PrimaryKey: s.BelongsTo.Pk,
 					ForeignKey: s.BelongsTo.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.BelongsTo2 != nil {
+				assocEntity, err := findEntityByName(s.BelongsTo2.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
 					Table:      s.BelongsTo2.Table,
 					Name:       s.BelongsTo2.Name,
 					PrimaryKey: s.BelongsTo2.Pk,
 					ForeignKey: s.BelongsTo2.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.BelongsTo3 != nil {
+				assocEntity, err := findEntityByName(s.BelongsTo3.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
 					Table:      s.BelongsTo3.Table,
 					Name:       s.BelongsTo3.Name,
 					PrimaryKey: s.BelongsTo3.Pk,
 					ForeignKey: s.BelongsTo3.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.BelongsTo4 != nil {
+				assocEntity, err := findEntityByName(s.BelongsTo4.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
 					Table:      s.BelongsTo4.Table,
 					Name:       s.BelongsTo4.Name,
 					PrimaryKey: s.BelongsTo4.Pk,
 					ForeignKey: s.BelongsTo4.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.BelongsTo5 != nil {
+				assocEntity, err := findEntityByName(s.BelongsTo5.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
 					Table:      s.BelongsTo5.Table,
 					Name:       s.BelongsTo5.Name,
 					PrimaryKey: s.BelongsTo5.Pk,
 					ForeignKey: s.BelongsTo5.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.BelongsTo6 != nil {
+				assocEntity, err := findEntityByName(s.BelongsTo6.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
 					Table:      s.BelongsTo6.Table,
 					Name:       s.BelongsTo6.Name,
 					PrimaryKey: s.BelongsTo6.Pk,
 					ForeignKey: s.BelongsTo6.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.BelongsTo7 != nil {
+				assocEntity, err := findEntityByName(s.BelongsTo7.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
 					Table:      s.BelongsTo7.Table,
 					Name:       s.BelongsTo7.Name,
 					PrimaryKey: s.BelongsTo7.Pk,
 					ForeignKey: s.BelongsTo7.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.BelongsTo8 != nil {
+				assocEntity, err := findEntityByName(s.BelongsTo8.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
 					Table:      s.BelongsTo8.Table,
 					Name:       s.BelongsTo8.Name,
 					PrimaryKey: s.BelongsTo8.Pk,
 					ForeignKey: s.BelongsTo8.Fk,
-				})
-			}
-			if s.BelongsTo5 != nil {
-				a = append(a, SQLAssociation{
-					Type:       SQLAssocationBelongsTo,
-					Table:      s.BelongsTo5.Table,
-					Name:       s.BelongsTo5.Name,
-					PrimaryKey: s.BelongsTo5.Pk,
-					ForeignKey: s.BelongsTo5.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.BelongsTo9 != nil {
+				assocEntity, err := findEntityByName(s.BelongsTo9.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
 					Table:      s.BelongsTo9.Table,
 					Name:       s.BelongsTo9.Name,
 					PrimaryKey: s.BelongsTo9.Pk,
 					ForeignKey: s.BelongsTo9.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.BelongsTo10 != nil {
+				assocEntity, err := findEntityByName(s.BelongsTo10.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
 					Table:      s.BelongsTo10.Table,
 					Name:       s.BelongsTo10.Name,
 					PrimaryKey: s.BelongsTo10.Pk,
 					ForeignKey: s.BelongsTo10.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasMany != nil {
+				assocEntity, err := findEntityByName(s.HasMany.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
 					Table:      s.HasMany.Table,
 					Name:       s.HasMany.Name,
 					PrimaryKey: s.HasMany.Pk,
 					ForeignKey: s.HasMany.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasMany2 != nil {
+				assocEntity, err := findEntityByName(s.HasMany2.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
 					Table:      s.HasMany2.Table,
 					Name:       s.HasMany2.Name,
 					PrimaryKey: s.HasMany2.Pk,
 					ForeignKey: s.HasMany2.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasMany3 != nil {
+				assocEntity, err := findEntityByName(s.HasMany3.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
 					Table:      s.HasMany3.Table,
 					Name:       s.HasMany3.Name,
 					PrimaryKey: s.HasMany3.Pk,
 					ForeignKey: s.HasMany3.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasMany4 != nil {
+				assocEntity, err := findEntityByName(s.HasMany4.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
 					Table:      s.HasMany4.Table,
 					Name:       s.HasMany4.Name,
 					PrimaryKey: s.HasMany4.Pk,
 					ForeignKey: s.HasMany4.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasMany5 != nil {
+				assocEntity, err := findEntityByName(s.HasMany5.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
 					Table:      s.HasMany5.Table,
 					Name:       s.HasMany5.Name,
 					PrimaryKey: s.HasMany5.Pk,
 					ForeignKey: s.HasMany5.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasMany6 != nil {
+				assocEntity, err := findEntityByName(s.HasMany6.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
 					Table:      s.HasMany6.Table,
 					Name:       s.HasMany6.Name,
 					PrimaryKey: s.HasMany6.Pk,
 					ForeignKey: s.HasMany6.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasMany7 != nil {
+				assocEntity, err := findEntityByName(s.HasMany7.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
 					Table:      s.HasMany7.Table,
 					Name:       s.HasMany7.Name,
 					PrimaryKey: s.HasMany7.Pk,
 					ForeignKey: s.HasMany7.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasMany8 != nil {
+				assocEntity, err := findEntityByName(s.HasMany8.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
 					Table:      s.HasMany8.Table,
 					Name:       s.HasMany8.Name,
 					PrimaryKey: s.HasMany8.Pk,
 					ForeignKey: s.HasMany8.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasMany9 != nil {
+				assocEntity, err := findEntityByName(s.HasMany9.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
 					Table:      s.HasMany9.Table,
 					Name:       s.HasMany9.Name,
 					PrimaryKey: s.HasMany9.Pk,
 					ForeignKey: s.HasMany9.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasMany10 != nil {
+				assocEntity, err := findEntityByName(s.HasMany10.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
 					Table:      s.HasMany10.Table,
 					Name:       s.HasMany10.Name,
 					PrimaryKey: s.HasMany10.Pk,
 					ForeignKey: s.HasMany10.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasOne != nil {
+				assocEntity, err := findEntityByName(s.HasOne.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
 					Table:      s.HasOne.Table,
 					Name:       s.HasOne.Name,
 					PrimaryKey: s.HasOne.Pk,
 					ForeignKey: s.HasOne.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasOne2 != nil {
+				assocEntity, err := findEntityByName(s.HasOne2.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
 					Table:      s.HasOne2.Table,
 					Name:       s.HasOne2.Name,
 					PrimaryKey: s.HasOne2.Pk,
 					ForeignKey: s.HasOne2.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasOne3 != nil {
+				assocEntity, err := findEntityByName(s.HasOne3.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
 					Table:      s.HasOne3.Table,
 					Name:       s.HasOne3.Name,
 					PrimaryKey: s.HasOne3.Pk,
 					ForeignKey: s.HasOne3.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasOne4 != nil {
+				assocEntity, err := findEntityByName(s.HasOne4.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
 					Table:      s.HasOne4.Table,
 					Name:       s.HasOne4.Name,
 					PrimaryKey: s.HasOne4.Pk,
 					ForeignKey: s.HasOne4.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasOne5 != nil {
+				assocEntity, err := findEntityByName(s.HasOne5.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
 					Table:      s.HasOne5.Table,
 					Name:       s.HasOne5.Name,
 					PrimaryKey: s.HasOne5.Pk,
 					ForeignKey: s.HasOne5.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasOne6 != nil {
+				assocEntity, err := findEntityByName(s.HasOne6.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
 					Table:      s.HasOne6.Table,
 					Name:       s.HasOne6.Name,
 					PrimaryKey: s.HasOne6.Pk,
 					ForeignKey: s.HasOne6.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasOne7 != nil {
+				assocEntity, err := findEntityByName(s.HasOne7.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
 					Table:      s.HasOne7.Table,
 					Name:       s.HasOne7.Name,
 					PrimaryKey: s.HasOne7.Pk,
 					ForeignKey: s.HasOne7.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasOne8 != nil {
+				assocEntity, err := findEntityByName(s.HasOne8.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
 					Table:      s.HasOne8.Table,
 					Name:       s.HasOne8.Name,
 					PrimaryKey: s.HasOne8.Pk,
 					ForeignKey: s.HasOne8.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasOne9 != nil {
+				assocEntity, err := findEntityByName(s.HasOne9.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
 					Table:      s.HasOne9.Table,
 					Name:       s.HasOne9.Name,
 					PrimaryKey: s.HasOne9.Pk,
 					ForeignKey: s.HasOne9.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			if s.HasOne10 != nil {
+				assocEntity, err := findEntityByName(s.HasOne10.Table)
+				if err != nil {
+					panic(err)
+				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
 					Table:      s.HasOne10.Table,
 					Name:       s.HasOne10.Name,
 					PrimaryKey: s.HasOne10.Pk,
 					ForeignKey: s.HasOne10.Fk,
+					Entity:     assocEntity,
 				})
 			}
 			return a

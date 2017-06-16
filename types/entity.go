@@ -6,6 +6,8 @@ import (
 	"strings"
 	"text/template"
 
+	"fmt"
+
 	"github.com/golang/protobuf/proto"
 	eproto "github.com/jhaynie/protoc-gen-gator/proto"
 	"github.com/serenize/snaker"
@@ -41,9 +43,7 @@ func (e Entity) TableNameSingular() string {
 	return strings.Title(e.Name)
 }
 
-// TableNamePlural returns an exteremly simplistic but good enough for now name
-func (e Entity) TableNamePlural() string {
-	name := strings.Title(e.Name)
+func plural(name string) string {
 	if strings.HasSuffix(name, "s") {
 		return name + "es"
 	}
@@ -51,6 +51,11 @@ func (e Entity) TableNamePlural() string {
 		return name[0:len(name)-1] + "ies"
 	}
 	return name + "s"
+}
+
+// TableNamePlural returns an exteremly simplistic but good enough for now name
+func (e Entity) TableNamePlural() string {
+	return plural(strings.Title(e.Name))
 }
 
 // HasPrimaryKey returns true if the table has a primary key
@@ -139,11 +144,17 @@ func GenerateCode(tmplcode string, state map[string]interface{}, funcs map[strin
 		"lowerfc": func(key string) string {
 			return strings.ToLower(key[0:1]) + key[1:]
 		},
+		"upcase": func(key string) string {
+			return strings.ToUpper(key)
+		},
 		"title": func(key string) string {
 			return strings.Title(key)
 		},
 		"snake": func(key string) string {
 			return snaker.CamelToSnake(key)
+		},
+		"camel": func(key string) string {
+			return snaker.SnakeToCamel(key)
 		},
 		"singular": func(key string) string {
 			if strings.HasSuffix(key, "es") {
@@ -153,6 +164,9 @@ func GenerateCode(tmplcode string, state map[string]interface{}, funcs map[strin
 				return key[0 : len(key)-1]
 			}
 			return key
+		},
+		"plural": func(key string) string {
+			return plural(key)
 		},
 	}
 	if funcs != nil {
@@ -223,6 +237,17 @@ func (e Entity) HasChecksum() bool {
 	return false
 }
 
+var entities = make([]*Entity, 0)
+
+func findEntityByName(name string) (*Entity, error) {
+	for _, e := range entities {
+		if e.Name == name || e.SQLTableName() == name {
+			return e, nil
+		}
+	}
+	return nil, fmt.Errorf("couldn't find " + name)
+}
+
 // NewEntity converts a message into an Entity
 func NewEntity(packageName string, file *File, message *Message) Entity {
 	e := Entity{}
@@ -236,5 +261,6 @@ func NewEntity(packageName string, file *File, message *Message) Entity {
 		p := NewProperty(&e, field)
 		e.Properties = append(e.Properties, *p)
 	}
+	entities = append(entities, &e)
 	return e
 }
