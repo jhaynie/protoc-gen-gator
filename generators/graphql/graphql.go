@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"bytes"
+	"sort"
 	"strings"
 
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
@@ -375,6 +376,7 @@ func (g *gqlgenerator) Generate(scheme string, file *types.File, entities []type
 		Filename: file.Package + "/graphql/model.graphql",
 		Output:   graphqlQueryUtils + "\n" + tablebuf.String() + rootbuf.String() + graphqlSchemaTemplate,
 	})
+	sort.Strings(tbls)
 	buf, err := types.GenerateCode(graphqlIndex, map[string]interface{}{"Tables": tbls}, fn)
 	if err != nil {
 		return nil, err
@@ -451,6 +453,10 @@ input QueryFilter {
 	condition: [QueryConditionGroup!]
 }
 
+interface Table {
+	_tablename: String
+}
+
 `
 
 const graphqlRootQueryTemplate = `{{- $e := .Entity }}
@@ -466,7 +472,7 @@ const graphqlRootQueryTemplate = `{{- $e := .Entity }}
 
 const graphqlTemplate = `{{- $e := .Entity -}}
 {{ GraphQLTypeEnumDefinition $e }}
-type {{ $e.TableNameSingular }} {
+type {{ $e.TableNameSingular }} implements Table {
 	{{- with .g }}
 	{{- range $i, $value := .Types }}
 	{{ . }}
@@ -477,6 +483,10 @@ type {{ $e.TableNameSingular }} {
 	{{ GraphQLAssociationType $a }}
 	{{- end }}
 	{{- end }}
+	{{- range $i, $p := $e.AdditionalGraphQLTypes }}
+	{{ $p.Name }}: {{ $p.Type }}
+	{{- end }}
+	_tablename: String
 }
 
 type {{ $e.TableNameSingular }}Optionals {
@@ -597,6 +607,10 @@ const COLUMN_NAMES = [
 ];
 
 const QUERY_PREFIX = 'SELECT {{$cl}} FROM {{$tnt}} ';
+const associationBeforeHooks = {};
+const associationAfterHooks = {};
+const queryBeforeHooks = {};
+const queryAfterHooks = {};
 
 /**
  * {{ $e.TableNameSingular }}
@@ -609,6 +623,114 @@ export default class {{ $e.TableNameSingular }} {
 		{{- end }}
 		Object.keys(props).filter(k => COLUMN_NAMES.indexOf(k) >= 0).forEach(k => this[k] = props[k]);
 	}
+	/**
+	 * install a hook before an association is invoked
+	 */
+	static hookBeforeAssociation(name, fn) {
+		{{- if $e.HasSQLAssociations }}
+		switch (name) {
+			{{- range $i, $a := $e.SQLAssociations }}
+			case '{{ $a.Name }}': {
+				const array = associationBeforeHooks[name] || [];
+				array.push(fn);
+				associationBeforeHooks[name] = array;
+				return;
+			}
+			{{- end }}
+		}
+		{{- end }}
+		throw new Error('no association named ' + name + ' for {{$e.TableNameSingular}}');
+	}
+	/**
+	 * install a hook after an association is returned but before it is returned
+	 */
+	static hookAfterAssociation(name, fn) {
+		{{- if $e.HasSQLAssociations }}
+		switch (name) {
+			{{- range $i, $a := $e.SQLAssociations }}
+			case '{{ $a.Name }}': {
+				const array = associationAfterHooks[name] || [];
+				array.push(fn);
+				associationAfterHooks[name] = array;
+				return;
+			}
+			{{- end }}
+		}
+		{{- end }}
+		throw new Error('no association named ' + name + ' for {{$e.TableNameSingular}}');
+	}
+	{{- if $e.HasSQLAssociations }}
+	{{- range $i, $a := $e.SQLAssociations }}
+	static get {{ $a.Name }}Association() {
+		return '{{ $a.Name }}';
+	}
+	{{- end }}
+	{{- end }}
+	{{- if len $e.Properties }}
+	{{- range $i, $col := $e.Properties }}
+	{{- if not $col.PrimaryKey }}
+	{{- if $col.Index }}
+	static get {{ lowerfc $e.TableNamePlural }}By{{$col.Name}}Query() {
+		return '{{ lowerfc $e.TableNamePlural }}By{{$col.Name}}';
+	}
+	{{- end }}
+	{{- end }}
+	{{- end }} 
+	{{- end }}
+	static get {{ lowerfc $e.TableNamePlural }}Query() {
+		return '{{ lowerfc $e.TableNamePlural }}';
+	}
+	static get {{ lowerfc $e.TableNameSingular }}Query() {
+		return '{{ lowerfc $e.TableNameSingular }}';
+	}
+	/**
+	 * install a hook before a query is invoked
+	 */
+	static hookBeforeQuery(name, fn) {
+		{{- if len $e.Properties }}
+		switch (name) {
+		{{- range $i, $col := $e.Properties }}
+		{{- if not $col.PrimaryKey }}
+		{{- if $col.Index }}
+			case '{{ lowerfc $e.TableNamePlural }}By{{$col.Name}}':
+		{{- end }}
+		{{- end }}
+		{{- end }} 
+			case '{{ lowerfc $e.TableNamePlural }}':
+			case '{{ lowerfc $e.TableNameSingular }}': {
+				const array = queryBeforeHooks[name] || [];
+				array.push(fn);
+				queryBeforeHooks[name] = array;
+				return;
+			}
+		}
+		{{- end }}
+		throw new Error('no query named ' + name + ' for {{$e.TableNameSingular}}');
+	}
+	/**
+	 * install a hook after a query is invoked but before the result is returned
+	 */
+	static hookAfterQuery(name, fn) {
+		switch (name) {
+		{{- range $i, $col := $e.Properties }}
+		{{- if $col.PrimaryKey }}
+			case '{{ lowerfc $e.TableNameSingular }}By{{$col.Name}}':
+		{{- else }}
+		{{- if $col.Index}}
+			case '{{ lowerfc $e.TableNamePlural }}By{{$col.Name}}':
+		{{- end }}
+		{{- end }}
+		{{- end }} 
+			case '{{ lowerfc $e.TableNamePlural }}':
+			case '{{ lowerfc $e.TableNameSingular }}': {
+				const array = queryAfterHooks[name] || [];
+				array.push(fn);
+				queryAfterHooks[name] = array;
+				return;
+			}
+		}
+		throw new Error('no query named ' + name + ' for {{$e.TableNameSingular}}');
+	}
 	static columns() {
 		return COLUMN_NAMES;
 	}
@@ -618,7 +740,10 @@ export default class {{ $e.TableNameSingular }} {
 		return '{{$col.SQLColumnName}}';
 	}
 	{{- end }}	
-	static table() {
+	static get table() {
+		return '{{$tn}}';
+	}
+	table() {
 		return '{{$tn}}';
 	}
 	static getAssociation(name) {
@@ -660,20 +785,55 @@ export default class {{ $e.TableNameSingular }} {
 	}
 	static createQueryResolver(_resolvers, _db) {
 		const _cls = this;
+		const _invokeBeforeFilters = async (_before, filter, _context, _info) => {
+			if (_before && _before.length) {
+				for (let _c = 0; _c < _before.length; _c++) {
+					filter = await _before[_c](filter, _context, _info);
+				}
+			}
+			return Promise.resolve(filter);
+		};
+		const _invokeAfterFilters = async (_after, promise, _context, _info) => {
+			if (_after && _after.length) {
+				let _result = await promise;
+				for (let _c = 0; _c < _after.length; _c++) {
+					_result = await _after[_c](_result, _context, _info);
+				}
+				return _result;
+			}
+			return promise;
+		};
 		{{- $l := len $e.Properties }}
 		{{- range $i, $col := $e.Properties }}
 		{{- if $col.PrimaryKey }}
 		_resolvers.Query.{{ lowerfc $e.TableNameSingular }}By{{$col.Name}} = (root, { {{$col.SQLColumnName}} }, context, info) => {
-			return _cls.findBy{{$col.Name}}(context.db || _db, {{$col.SQLColumnName}}, context);
+			return _invokeAfterFilters(
+				queryAfterHooks['{{ lowerfc $e.TableNameSingular }}By{{$col.Name}}'],
+				_cls.findBy{{$col.Name}}(context.db || _db, {{$col.SQLColumnName}}, context),
+				context,
+				info
+			);
 		};
 		{{- else }}
 		{{- if $col.Index}}
-		_resolvers.Query.{{ lowerfc $e.TableNamePlural }}By{{$col.Name}} = (root, { {{$col.SQLColumnName}}, filter, offset, limit, sort, sortOrder }, context, info) => {
+		_resolvers.Query.{{ lowerfc $e.TableNamePlural }}By{{$col.Name}} = async (root, { {{$col.SQLColumnName}}, filter, offset, limit, sort, sortOrder }, context, info) => {
 			filter = helper.filterWithLimit(filter, offset, limit);
 			filter = helper.filterWithSort(filter, '{{$tn}}', sort, sortOrder);
-			const cond = Filter.toWherePrepend(helper.augmentFilter(filter, context, _cls), '{{$col.SQLColumnName}}', {{$col.SQLColumnName}});
+			filter = helper.augmentFilter(filter, context, _cls);
+			filter = await _invokeBeforeFilters(
+				queryBeforeHooks['{{ lowerfc $e.TableNamePlural }}By{{$col.Name}}'],
+				filter,
+				_context,
+				_info
+			);
+			const cond = Filter.toWherePrepend(filter, '{{$col.SQLColumnName}}', {{$col.SQLColumnName}});
 			const q = QUERY_PREFIX + cond.query;
-			return Query.exec(context.db || _db, q, cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES);
+			return _invokeAfterFilters(
+				queryAfterHooks['{{ lowerfc $e.TableNamePlural }}By{{$col.Name}}'],
+				Query.exec(context.db || _db, q, cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES),
+				_context,
+				_info
+			);
 		};
 		{{- end }}
 		{{- end }}
@@ -681,13 +841,32 @@ export default class {{ $e.TableNameSingular }} {
 		const associationResolvers = {
 			{{- if $e.HasSQLAssociations }}
 			{{- range $i, $a := $e.SQLAssociations }}
-			{{ $a.Name }}: function(obj, args, context, info) {
+			{{ $a.Name }}: async function(obj, args, context, info) {
+				{{- if $e.HasSQLAssociations }}
+				const before = associationBeforeHooks['{{ $a.Name }}'],
+					after = associationAfterHooks['{{ $a.Name }}'];
+				if ((before && before.length) || (after && after.length)) {
+					if (before && before.length) {
+						for (let c = 0; c < before.length; c++) {
+							obj = await before[c](obj);
+						}
+					}
+					let result = await helper.returnAssociation(_cls.getAssociation('{{$a.Name}}'), context.db || _db, obj, info, context, args);
+					if (after && after.length) {
+						for (let c = 0; c < after.length; c++) {
+							result = await after[c](result);
+						}
+					}
+					return result;
+				}
+				{{- end }}
 				return helper.returnAssociation(_cls.getAssociation('{{$a.Name}}'), context.db || _db, obj, info, context, args);
 			},
 			{{- end }}
 			{{- end }}
 		};
 		_resolvers.{{ $e.TableNameSingular }} = Object.assign({}, associationResolvers);
+		_resolvers.{{ $e.TableNameSingular }}._tablename = o => o.table();
 		_resolvers.{{ $e.TableNameSingular }}Optionals = Object.assign({}, associationResolvers);
 		_resolvers.{{ $e.TableNameSingular }}Aggregation = Object.assign({
 			distinct: function(obj, args, context, info) {
@@ -709,15 +888,27 @@ export default class {{ $e.TableNameSingular }} {
 			},
 			{{ end }}
 		}, associationResolvers);
-		_resolvers.Query.{{ lowerfc $e.TableNamePlural }} = (_, { filter, sort, sortOrder, {{ GraphQLFieldParameters $e true }} }, _context, _info) => {
+		_resolvers.Query.{{ lowerfc $e.TableNamePlural }} = async (_, { filter, sort, sortOrder, {{ GraphQLFieldParameters $e true }} }, _context, _info) => {
 			filter = helper.filterWithLimit(filter, offset, limit);
 			filter = helper.filterWithSort(filter, '{{$tn}}', sort, sortOrder);
 			filter = helper.buildFilter(filter, {{ GraphQLFieldParameterArgs $e true }}, '{{$tn}}');
-			const _where = Filter.toWhere(helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'), _context, _cls));
+			filter = helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'));
+			filter = await _invokeBeforeFilters(
+				queryBeforeHooks['{{ lowerfc $e.TableNamePlural }}'],
+				filter,
+				_context,
+				_info
+			);
+			const _where = Filter.toWhere(filter);
 			const _sql = QUERY_PREFIX + _where.query;
-			return Query.exec(_context.db || _db, _sql, _where.params, {{$e.TableNameSingular}}, COLUMN_NAMES);
+			return _invokeAfterFilters(
+				queryAfterHooks['{{ lowerfc $e.TableNamePlural }}'],
+				Query.exec(_context.db || _db, _sql, _where.params, {{$e.TableNameSingular}}, COLUMN_NAMES),
+				_context,
+				_info
+			);
 		};
-		_resolvers.Query.{{ lowerfc $e.TableNameSingular }} = (_, { filter, sort, sortOrder, {{ GraphQLFieldParameters $e false }} }, _context, _info) => {
+		_resolvers.Query.{{ lowerfc $e.TableNameSingular }} = async (_, { filter, sort, sortOrder, {{ GraphQLFieldParameters $e false }} }, _context, _info) => {
 			filter = helper.filterWithLimit(filter, offset, limit);
 			filter = helper.filterWithSort(filter, '{{$tn}}', sort, sortOrder);
 			filter = helper.buildFilter(filter, {{ GraphQLFieldParameterArgs $e false }}, '{{$tn}}');
@@ -731,15 +922,34 @@ export default class {{ $e.TableNameSingular }} {
 				if (_a.count) {
 					_fn = (_mi, _row) => {_mi.count = _row.count; _mi};
 				}
-				const _where = Filter.toWhere(helper.augmentFilter(_a, _context, _cls));
+				filter = helper.augmentFilter(_a, _context, _cls)
+				filter = await _invokeBeforeFilters(
+					queryBeforeHooks['{{ lowerfc $e.TableNameSingular }}'],
+					filter,
+					_context,
+					_info
+				);
+				const _where = Filter.toWhere(filter);
 				_params = _where.params;
 				_sql = 'SELECT ' + _a.fields.join(', ') + ' FROM ' + _a.tables.map(_t => Query.escapeId(_t)).join(', ') + ' ' + _where.query;
 			} else {
-				const _where = Filter.toWhere(helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'), _context, _cls));
+				filter = helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'));
+				filter = await _invokeBeforeFilters(
+					queryBeforeHooks['{{ lowerfc $e.TableNameSingular }}'],
+					filter,
+					_context,
+					_info
+				);
+				const _where = Filter.toWhere(filter, _context, _cls);
 				_params = _where.params;
 				_sql = QUERY_PREFIX + _where.query;
 			}
-			return Query.exec(_context.db || _db, _sql, _params, {{$e.TableNameSingular}}, _fn);
+			return _invokeAfterFilters(
+				queryAfterHooks['{{ lowerfc $e.TableNameSingular }}'],
+				Query.exec(_context.db || _db, _sql, _params, {{$e.TableNameSingular}}, _fn),
+				_context,
+				_info
+			);
 		};
 	}
 	{{- range $i, $col := $e.Properties }}
@@ -785,23 +995,19 @@ export default class {{ $e.TableNameSingular }} {
 	{{- end }}
 	{{- end }}
 	static find(db, filter, context, args) {
-		let cond;
 		let sql = QUERY_PREFIX;
 		filter = helper.buildArgsFilter('{{$tn}}', args, filter);
-		if (filter && filter.query && filter.params) {
-			cond = helper.scopeFilter(filter, '{{$tn}}');
-			if (filter.tables) {
-				// add additional tables
-				const tl = filter.tables.filter(t => t !== '{{$tn}}').map(t => Query.escapeId(t))
-				if (tl.length) {
-					sql += ',' + tl.join(', ');
-				}
+		filter = helper.scopeFilter(filter, '{{$tn}}');
+		if (filter.tables) {
+			// add additional tables
+			const tl = filter.tables.filter(t => t !== '{{$tn}}').map(t => Query.escapeId(t))
+			if (tl.length) {
+				sql += ',' + tl.join(', ');
 			}
-		} else {
-			cond = Filter.toWhere(helper.augmentFilter(null, context, {{ $e.TableNameSingular }}));
 		}
-		sql += cond.query;
-		return Query.exec(context.db || db, sql, cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES);
+		const where = Filter.toWhere(helper.augmentFilter(filter, context, {{ $e.TableNameSingular }}));
+		sql += where.query;
+		return Query.exec(context.db || db, sql, where.params, {{$e.TableNameSingular}}, COLUMN_NAMES);
 	}
 	{{- if $e.HasSQLAssociations }}
 	{{- range $i, $a := $e.SQLAssociations }}
@@ -965,7 +1171,7 @@ export function findAggregationQuery(info, cls) {
 		ss.selections.forEach(s => {
 			if (isAgg(s.name.value)) {
 				agg.push({
-					table: cls.table(),
+					table: cls.table,
 					name: s.name.value,
 					fields: s.selectionSet && s.selectionSet.selections.filter(sel => isValidField(sel.name.value)).map(sel => sel.name.value),
 					args: s.arguments && s.arguments.map(a => ({name:a.name.value, value:a.value.value}))
@@ -981,7 +1187,7 @@ export function findAggregationQuery(info, cls) {
 					});
 				} else if (isValidField(s.name.value)) {
 					fields.push({
-						table: cls.table(),
+						table: cls.table,
 						field: s.name.value
 					});
 				}
@@ -1037,7 +1243,7 @@ export function returnAssociation(assoc, db, obj, info, context, args) {
 export function filterWithLimit(filter = {}, offset, limit) {
 	if (offset !== undefined) {
 		filter.range = {offset:offset, limit:filter.limit || limit || 1000};
-	} else {
+	} else if (!filter.range) {
 		filter.limit = filter.limit || limit || 1000;
 	}
 	return filter;

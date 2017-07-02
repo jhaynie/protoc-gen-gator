@@ -2,11 +2,10 @@ package types
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"strings"
 	"text/template"
-
-	"fmt"
 
 	"github.com/golang/protobuf/proto"
 	eproto "github.com/jhaynie/protoc-gen-gator/proto"

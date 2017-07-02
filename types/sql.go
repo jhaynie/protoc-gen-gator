@@ -7,6 +7,8 @@ import (
 
 	"fmt"
 
+	"sort"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
 	eproto "github.com/jhaynie/protoc-gen-gator/proto"
@@ -78,6 +80,8 @@ func (e Entity) SQLAssociationsUnique() []string {
 		for k := range h {
 			s = append(s, k)
 		}
+		// sort so that we have a stable list in case we use them in code
+		sort.Strings(s)
 		return s
 	}
 	return []string{}

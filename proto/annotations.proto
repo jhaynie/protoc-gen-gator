@@ -28,6 +28,11 @@ message SQLFieldOptions {
   string default = 8;
 }
 
+message GraphQLType {
+  string name = 1;
+  string type = 2;
+}
+
 message SQLMessageOptions {
   SQLIndex index = 1;
   SQLIndex index2 = 2;
@@ -70,6 +75,16 @@ message SQLMessageOptions {
   SQLAssociation has_many9 = 48;
   SQLAssociation has_many10 = 49;
   bool nogenerate = 50;
+  GraphQLType add_type = 51;
+  GraphQLType add_type1 = 52;
+  GraphQLType add_type2 = 53;
+  GraphQLType add_type3 = 54;
+  GraphQLType add_type4 = 55;
+  GraphQLType add_type5 = 56;
+  GraphQLType add_type6 = 57;
+  GraphQLType add_type7 = 58;
+  GraphQLType add_type8 = 59;
+  GraphQLType add_type9 = 60;
 }
 
 message SQLFileOptions {
