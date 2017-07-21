@@ -310,13 +310,35 @@ func toGraphQLFieldParameterArgs(e types.Entity, idcolumn bool) string {
 
 func toGraphQLModelFieldArgs(e types.Entity, idcolumn bool) string {
 	args := make([]string, 0)
-	args = append(args, "limit:Int", "offset:Int", "sort:"+e.TableNameSingular()+"Fields", "sortOrder:QueryDirection")
+	if !idcolumn {
+		args = append(args, "limit:Int", "offset:Int", "sort:"+e.TableNameSingular()+"Fields", "sortOrder:QueryDirection")
+	}
 	for _, p := range e.Properties {
 		if !p.IsSQLIDColumn() || idcolumn && p.IsSQLIDColumn() {
 			args = append(args, toJSSafeVariable(p.SQLColumnName())+": "+toGraphQLTypeOptional(&p))
 		}
 	}
 	return strings.Join(args, ", ")
+}
+
+func toGraphQLImports(e types.Entity) []string {
+	imports := make([]string, 0)
+	found := make(map[string]bool)
+	for _, a := range e.SQLAssociationsUnique() {
+		if e.TableNameSingular() != a {
+			imports = append(imports, a)
+			found[a] = true
+		}
+	}
+	for _, a := range e.AdditionalGraphQLUnions() {
+		for _, t := range a.Tables {
+			if !found[t] {
+				found[t] = true
+				imports = append(imports, t)
+			}
+		}
+	}
+	return imports
 }
 
 func (g *gqlgenerator) Generate(scheme string, file *types.File, entities []types.Entity) ([]*types.Generation, error) {
@@ -335,16 +357,23 @@ func (g *gqlgenerator) Generate(scheme string, file *types.File, entities []type
 	fn["GraphQLFieldParameters"] = toGraphQLFieldParameters
 	fn["GraphQLFieldParameterArgs"] = toGraphQLFieldParameterArgs
 	fn["GraphQLModelFieldArgs"] = toGraphQLModelFieldArgs
+	fn["GraphQLImports"] = toGraphQLImports
 	fn["SnakeToCamel"] = snaker.SnakeToCamel
 	fn["CamelToSnake"] = snaker.CamelToSnake
 	tbls := make([]string, 0)
+	unions := make([]types.GraphUnionType, 0)
 	var rootbuf bytes.Buffer
 	var tablebuf bytes.Buffer
+	var typesbuff bytes.Buffer
 	rootbuf.WriteString("type Query {")
 	for _, entity := range entities {
 		kv := make(map[string]interface{})
 		t := make([]string, 0)
 		to := make([]string, 0)
+		u := entity.AdditionalGraphQLUnions()
+		if len(u) > 0 {
+			unions = append(unions, u...)
+		}
 		for _, p := range entity.Properties {
 			t = append(t, snaker.CamelToSnake(p.Name)+": "+toGraphQLType(&p))
 			to = append(to, snaker.CamelToSnake(p.Name)+": "+toGraphQLTypeOptional(&p))
@@ -370,11 +399,20 @@ func (g *gqlgenerator) Generate(scheme string, file *types.File, entities []type
 			Filename: file.Package + "/graphql/" + entity.Name + ".js",
 			Output:   string(buf),
 		})
+		if len(entity.AdditionalGraphQLTypes()) > 0 {
+			buf, err = entity.GenerateCode(graphqlAdditionalTypes, kv, fn)
+			if err != nil {
+				return nil, err
+			}
+			if len(buf) > 0 {
+				typesbuff.Write(buf)
+			}
+		}
 	}
 	rootbuf.WriteString("}\n")
 	results = append(results, &types.Generation{
 		Filename: file.Package + "/graphql/model.graphql",
-		Output:   graphqlQueryUtils + "\n" + tablebuf.String() + rootbuf.String() + graphqlSchemaTemplate,
+		Output:   graphqlQueryUtils + "\n" + typesbuff.String() + "\n" + tablebuf.String() + rootbuf.String() + graphqlSchemaTemplate,
 	})
 	sort.Strings(tbls)
 	buf, err := types.GenerateCode(graphqlIndex, map[string]interface{}{"Tables": tbls}, fn)
@@ -389,8 +427,25 @@ func (g *gqlgenerator) Generate(scheme string, file *types.File, entities []type
 		Filename: file.Package + "/graphql/_helper.js",
 		Output:   graphqlQueryHelper,
 	})
+	//TODO sort
+	buf, err = types.GenerateCode(graphqlFragmentMatcher, map[string]interface{}{"Unions": unions}, fn)
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, &types.Generation{
+		Filename: file.Package + "/graphql/_unions.js",
+		Output:   string(buf),
+	})
 	return results, nil
 }
+
+const graphqlAdditionalTypes = `{{- $e := .Entity }}
+{{- range $i, $p := $e.AdditionalGraphQLTypes }}
+{{- if $p.Generate }}
+{{ $p.Definition }}
+{{- end }}
+{{- end }}
+`
 
 const graphqlQueryUtils = `
 scalar JSON
@@ -454,18 +509,32 @@ input QueryFilter {
 }
 
 interface Table {
-	_tablename: String
+	_tablename: String!
+}
+
+type ResultPaginationDetails {
+	total: Int!
+	offset: Int!
+	length: Int!
+}
+
+type ResultQueryDetails {
+	live: Int!
+	cached: Int!
+	query_time: Int!
+	total_time: Int!
+	total_records: Int!	
 }
 
 `
 
 const graphqlRootQueryTemplate = `{{- $e := .Entity }}
 	{{ lowerfc $e.TableNameSingular }}(filter: QueryFilter, {{GraphQLModelFieldArgs $e true}}):[{{ $e.TableNameSingular -}} Aggregation]
-	{{ lowerfc $e.TableNamePlural }}(filter: QueryFilter, offset:Int, limit:Int, sort:{{ $e.TableNameSingular }}Fields, sortOrder:QueryDirection, {{GraphQLModelFieldArgs $e false}}):[{{ $e.TableNameSingular }}]
-	{{ lowerfc $e.TableNameSingular }}By {{- $e.PrimaryKeyProperty.Field.Name}}( {{- GraphQLVariable $e.PrimaryKeyProperty -}}: {{ GraphQLType $e.PrimaryKeyProperty -}}):{{ $e.TableNameSingular }}
+	{{ lowerfc $e.TableNamePlural }}(filter: QueryFilter, offset:Int, limit:Int, sort:{{ $e.TableNameSingular }}Fields, sortOrder:QueryDirection, {{GraphQLModelFieldArgs $e false}}):{{ $e.TableNameSingular }}Results
+	{{ lowerfc $e.TableNameSingular }}By {{- $e.PrimaryKeyProperty.Field.Name}}( {{- GraphQLVariable $e.PrimaryKeyProperty -}}: {{ GraphQLType $e.PrimaryKeyProperty -}}):{{ $e.TableNameSingular }}Results
 	{{- range $i, $value := $e.Properties }}
 	{{- if .Index }}
-	{{ lowerfc $e.TableNamePlural }}By {{- $value.Field.Name}}(  {{- GraphQLVariable . -}}: {{GraphQLType . -}}, filter: QueryFilter, offset:Int, limit:Int, sort:{{ $e.TableNameSingular }}Fields, sortOrder:QueryDirection):[{{ $e.TableNameSingular }}]
+	{{ lowerfc $e.TableNamePlural }}By {{- $value.Field.Name}}(  {{- GraphQLVariable . -}}: {{GraphQLType . -}}, filter: QueryFilter, offset:Int, limit:Int, sort:{{ $e.TableNameSingular }}Fields, sortOrder:QueryDirection):{{ $e.TableNameSingular }}Results
 	{{- end }}
 	{{- end }}
 `
@@ -486,7 +555,13 @@ type {{ $e.TableNameSingular }} implements Table {
 	{{- range $i, $p := $e.AdditionalGraphQLTypes }}
 	{{ $p.Name }}: {{ $p.Type }}
 	{{- end }}
-	_tablename: String
+	_tablename: String!
+}
+
+type {{ $e.TableNameSingular }}Results {
+	pagination: ResultPaginationDetails!
+	details: ResultQueryDetails!
+	results: [{{ $e.TableNameSingular }}!]!
 }
 
 type {{ $e.TableNameSingular }}Optionals {
@@ -499,6 +574,9 @@ type {{ $e.TableNameSingular }}Optionals {
 	{{- range $i, $a := $e.SQLAssociations }}
 	{{ GraphQLAssociationType $a }}
 	{{- end }}
+	{{- end }}
+	{{- range $i, $p := $e.AdditionalGraphQLTypes }}
+	{{ $p.Name }}: {{ $p.Type }}
 	{{- end }}
 }
 
@@ -514,7 +592,7 @@ enum {{ $e.TableNameSingular }}Fields {
 
 type {{ $e.TableNameSingular }}Aggregation {
 	count: Int
-	distinct(field: {{ $e.TableNameSingular }}Fields):[{{ $e.TableNameSingular }}]
+	distinct(field: {{ $e.TableNameSingular }}Fields!):[{{ $e.TableNameSingular }}]
 {{- if len $l }}
 	min: {{ $e.TableNameSingular }}Min
 	max: {{ $e.TableNameSingular }}Max
@@ -530,6 +608,9 @@ type {{ $e.TableNameSingular }}Aggregation {
 	{{- range $i, $a := $e.SQLAssociations }}
 	{{ GraphQLAssociationTypeOptional $a }}
 	{{- end }}
+	{{- end }}
+	{{- range $i, $p := $e.AdditionalGraphQLTypes }}
+	{{ $p.Name }}: {{ $p.Type }}
 	{{- end }}
 }
 
@@ -562,6 +643,7 @@ type {{ $e.TableNameSingular }}Avg {
 `
 
 const graphqlIndex = `import { Filter, Query } from 'gator-js';
+import IntrospectionFragmentMatcher from './_unions';
 {{- range $i, $col := .Tables }}
 import {{ . }} from './{{ . }}';
 {{- end}}
@@ -570,12 +652,19 @@ export {
 	{{ . }},
 	{{- end}}
 	Filter,
-	Query
+	Query,
+	IntrospectionFragmentMatcher
 }
 export default function resolve(resolvers, connection) {
 	{{- range $i, $col := .Tables }}
 	{{ . }}.createQueryResolver(resolvers, connection);
 	{{- end}}
+	resolvers.ResultPaginationDetails = {
+		total: async (root, args, context, info) => {
+			const r = await root.fn();
+			return r && r.length && r[0].count || 0;
+		}
+	};
 }
 `
 
@@ -593,10 +682,9 @@ const graphqlResolver = `{{- $e := .Entity -}}
 {{- $amf := GraphQLAggregationMathFields $e }}
 import * as helper from './_helper';
 import { Filter, Query } from 'gator-js';
-{{- range $i, $a := $e.SQLAssociationsUnique }}
-{{- if ne $a $e.TableNameSingular }}
+import Dataloader from 'dataloader';
+{{- range $i, $a := GraphQLImports $e }}
 import {{ $a }} from './{{ $a }}';
-{{- end }}
 {{- end}}
 
 const COLUMN_NAMES = [
@@ -606,7 +694,9 @@ const COLUMN_NAMES = [
 	{{- end }}	
 ];
 
-const QUERY_PREFIX = 'SELECT {{$cl}} FROM {{$tnt}} ';
+const QUERY_ALL_PREFIX = 'SELECT {{$cl}} FROM {{$tnt}} ';
+const QUERY_COUNT_PREFIX = 'SELECT count(*) as count FROM {{$tnt}} ';
+
 const associationBeforeHooks = {};
 const associationAfterHooks = {};
 const queryBeforeHooks = {};
@@ -617,7 +707,17 @@ const queryAfterHooks = {};
  * @class
  */
 export default class {{ $e.TableNameSingular }} {
-	constructor(props = {}) {
+	/**
+	 * construct an new instance of {{ $e.TableNameSingular }}
+	 * @constructor
+	 * @param {object} props - the column values
+	 * @param {object} context - the graphql context
+	 */
+	constructor(props = {}, context) {
+		Object.defineProperty(this, '__context', {
+			writable: false,
+			value: context
+		});
 		{{- range $i, $col := $e.Properties }}
 		this.{{$col.SQLColumnName}} = {{DefaultJSValue $col}};
 		{{- end }}
@@ -731,6 +831,10 @@ export default class {{ $e.TableNameSingular }} {
 		}
 		throw new Error('no query named ' + name + ' for {{$e.TableNameSingular}}');
 	}
+	/**
+	 * table column names
+	 * returns {Array} column names
+	 */
 	static columns() {
 		return COLUMN_NAMES;
 	}
@@ -743,9 +847,55 @@ export default class {{ $e.TableNameSingular }} {
 	static get table() {
 		return '{{$tn}}';
 	}
+	/**
+	 * table name of this class
+	 * @returns {String} table name
+	 */
 	table() {
 		return '{{$tn}}';
 	}
+	/**
+	 * find multiple primary keys
+	 * @returns {Promise} array of {{$e.TableNameSingular}}
+	 */
+	static findSome(db, ids, context) {
+		if (Array.isArray(ids) && ids.length && ids[0] instanceof {{$e.TableNameSingular}}) {
+			ids = ids.map(row => row[{{ $pkc }}]);
+		}
+		if (!ids.length) {
+			return Promise.resolve([]);
+		}
+		return Promise.all(ids.map(id => {{$e.TableNameSingular}}.findByPrimaryKey(context.db, id, context)));
+	}
+	{{- range $i, $p := $e.AdditionalGraphQLUnions }}
+	/**
+	 * find the {{ $p.Name }} column
+	 * @returns {Object}
+	 */
+	get{{ SnakeToCamel $p.Name }}() {
+		switch(this.{{ $p.Type }}) {
+		{{- range $k, $v := $p.Mapping }}
+			case '{{$k}}': {
+				const pk = this.{{ $p.ID }};
+				if (pk !== null && pk !== undefined) {
+					return {{ $v }}.findByPrimaryKey(this.__context.db, this.{{ $p.ID }}, this.__context);
+				}
+			}
+		{{- end }}
+		}
+	}
+	{{- end }}
+	{{- if $e.HasSQLAssociations }}
+	{{- range $i, $a := $e.SQLAssociations }}
+	get{{ SnakeToCamel $a.Name }}() {
+		const pk = this.{{ $a.PrimaryKey }};
+		if (pk !== null && pk !== undefined) {
+			const assoc = {{$e.TableNameSingular}}.getAssociation('{{ $a.Name }}');
+			return assoc && assoc.finder(this.__context.db, this.{{ $a.PrimaryKey }}, this.__context);
+		}
+	}
+	{{- end }}
+	{{- end }}
 	static getAssociation(name) {
 		{{- if $e.HasSQLAssociations }}
 		switch (name) {
@@ -793,15 +943,34 @@ export default class {{ $e.TableNameSingular }} {
 			}
 			return Promise.resolve(filter);
 		};
-		const _invokeAfterFilters = async (_after, promise, _context, _info) => {
-			if (_after && _after.length) {
-				let _result = await promise;
-				for (let _c = 0; _c < _after.length; _c++) {
-					_result = await _after[_c](_result, _context, _info);
+		const _invokeAfterFilters = (_after, promise, _context, _info, _range, _agg) => {
+			return new Promise(
+				async(resolve, reject) => {
+					try {
+						let _result = await promise;
+						if (_after && _after.length) {
+							for (let _c = 0; _c < _after.length; _c++) {
+								_result = await _after[_c](_result, _context, _info);
+							}
+						}
+						if (_result) {
+							_context._total = Array.isArray(_result) ? _result.length : 1;
+						}
+						if (_range) {
+							_context._range_offset = _range.offset;
+						}
+						let _return;
+						if (_agg) {
+							_return = _result;
+						} else {
+							_return = {results: _result};
+						}
+						resolve(_return);
+					} catch (ex) {
+						reject(ex);
+					}
 				}
-				return _result;
-			}
-			return promise;
+			);
 		};
 		{{- $l := len $e.Properties }}
 		{{- range $i, $col := $e.Properties }}
@@ -827,10 +996,11 @@ export default class {{ $e.TableNameSingular }} {
 				_info
 			);
 			const cond = Filter.toWherePrepend(filter, '{{$col.SQLColumnName}}', {{$col.SQLColumnName}});
-			const q = QUERY_PREFIX + cond.query;
+			const _columns = _info.operation.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === '{{ lowerfc $e.TableNamePlural }}' && s.selectionSet.selections).selectionSet.selections[0].selectionSet.selections.map(s => Query.escapeId(s.name.value));
+			const _q = 'SELECT ' + _columns + ' FROM {{ $tnt }} ' + cond.query;
 			return _invokeAfterFilters(
 				queryAfterHooks['{{ lowerfc $e.TableNamePlural }}By{{$col.Name}}'],
-				Query.exec(context.db || _db, q, cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES),
+				Query.exec(_context.db || _db, _q, cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES, _context),
 				_context,
 				_info
 			);
@@ -864,9 +1034,47 @@ export default class {{ $e.TableNameSingular }} {
 			},
 			{{- end }}
 			{{- end }}
+			{{- range $i, $p := $e.AdditionalGraphQLUnions }}
+			{{ $p.Name }}: (obj, args, context, info) => {
+				switch(obj.{{ $p.Type }}) {
+				{{- range $k, $v := $p.Mapping }}
+					case '{{$k}}': {
+						const pk = obj.{{ $p.ID }};
+						if (pk !== null && pk !== undefined) {
+							return {{ $v }}.findByPrimaryKey(context.db, pk, context, info);
+						}
+					}
+				{{- end }}
+				}
+			},
+			{{- end }}
 		};
+		{{- range $i, $p := $e.AdditionalGraphQLUnions }}
+		_resolvers.{{ $p.Union }} = {
+			__resolveType : obj => obj.constructor.name
+		};
+		{{- end }}
 		_resolvers.{{ $e.TableNameSingular }} = Object.assign({}, associationResolvers);
 		_resolvers.{{ $e.TableNameSingular }}._tablename = o => o.table();
+		_resolvers.{{ $e.TableNameSingular }}Results = {
+			details: (root, args, context) => {
+				return {
+					live: context.live || 0,
+					cached: context.cached || 0,
+					query_time: context.query_time || 0,
+					total_records: context.total_records || 0,
+					total_time: Date.now() - (context.started || Date.now())
+				}
+			},
+			pagination: async (root, args, context, info) => {
+				return {
+					fn: context._total_query,
+					total: 0,
+					offset: context._range_offset || 0,
+					length: context._total || 0
+				};
+			}
+		};
 		_resolvers.{{ $e.TableNameSingular }}Optionals = Object.assign({}, associationResolvers);
 		_resolvers.{{ $e.TableNameSingular }}Aggregation = Object.assign({
 			distinct: function(obj, args, context, info) {
@@ -892,7 +1100,7 @@ export default class {{ $e.TableNameSingular }} {
 			filter = helper.filterWithLimit(filter, offset, limit);
 			filter = helper.filterWithSort(filter, '{{$tn}}', sort, sortOrder);
 			filter = helper.buildFilter(filter, {{ GraphQLFieldParameterArgs $e true }}, '{{$tn}}');
-			filter = helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'));
+			filter = helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'), _context, {{$e.TableNameSingular}});
 			filter = await _invokeBeforeFilters(
 				queryBeforeHooks['{{ lowerfc $e.TableNamePlural }}'],
 				filter,
@@ -900,12 +1108,15 @@ export default class {{ $e.TableNameSingular }} {
 				_info
 			);
 			const _where = Filter.toWhere(filter);
-			const _sql = QUERY_PREFIX + _where.query;
+			const _columns = _info.operation.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === '{{ lowerfc $e.TableNamePlural }}' && s.selectionSet.selections).selectionSet.selections[0].selectionSet.selections.map(s => Query.escapeId(s.name.value));
+			const _sql = 'SELECT ' + _columns + ' FROM {{ $tnt }} ' + _where.query;
+			_context._total_query = () => Query.exec(_context.db || _db, QUERY_COUNT_PREFIX + helper.removeRange(_where.query), _where.params, {{$e.TableNameSingular}}, (_mi, _row) => {_mi.count = _row.count; _mi}, _context)
 			return _invokeAfterFilters(
 				queryAfterHooks['{{ lowerfc $e.TableNamePlural }}'],
-				Query.exec(_context.db || _db, _sql, _where.params, {{$e.TableNameSingular}}, COLUMN_NAMES),
+				Query.exec(_context.db || _db, _sql, _where.params, {{$e.TableNameSingular}}, COLUMN_NAMES, _context),
 				_context,
-				_info
+				_info,
+				filter.range
 			);
 		};
 		_resolvers.Query.{{ lowerfc $e.TableNameSingular }} = async (_, { filter, sort, sortOrder, {{ GraphQLFieldParameters $e false }} }, _context, _info) => {
@@ -913,7 +1124,7 @@ export default class {{ $e.TableNameSingular }} {
 			filter = helper.filterWithSort(filter, '{{$tn}}', sort, sortOrder);
 			filter = helper.buildFilter(filter, {{ GraphQLFieldParameterArgs $e false }}, '{{$tn}}');
 			const _aggQuery = helper.findAggregationQuery(_info, _cls);
-			let _sql, _params, _fn;
+			let _sql, _params, _fn, _trimlimit, _agg;
 			if (_aggQuery) {
 				let _a = helper.scopeFilter(filter, '{{$tn}}');
 				_aggQuery.agg.forEach(_agg => {
@@ -921,6 +1132,7 @@ export default class {{ $e.TableNameSingular }} {
 				});
 				if (_a.count) {
 					_fn = (_mi, _row) => {_mi.count = _row.count; _mi};
+					_trimlimit = true;
 				}
 				filter = helper.augmentFilter(_a, _context, _cls)
 				filter = await _invokeBeforeFilters(
@@ -931,9 +1143,11 @@ export default class {{ $e.TableNameSingular }} {
 				);
 				const _where = Filter.toWhere(filter);
 				_params = _where.params;
-				_sql = 'SELECT ' + _a.fields.join(', ') + ' FROM ' + _a.tables.map(_t => Query.escapeId(_t)).join(', ') + ' ' + _where.query;
+				const _q = _trimlimit ? helper.removeRange(_where.query) : _where.query;
+				_sql = 'SELECT ' + _a.fields.join(', ') + ' FROM ' + _a.tables.map(_t => Query.escapeId(_t)).join(', ') + ' ' + _q;
+				_agg = true;
 			} else {
-				filter = helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'));
+				filter = helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'), _context, _cls);
 				filter = await _invokeBeforeFilters(
 					queryBeforeHooks['{{ lowerfc $e.TableNameSingular }}'],
 					filter,
@@ -942,13 +1156,16 @@ export default class {{ $e.TableNameSingular }} {
 				);
 				const _where = Filter.toWhere(filter, _context, _cls);
 				_params = _where.params;
-				_sql = QUERY_PREFIX + _where.query;
+				const _columns = _info.operation.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === '{{ lowerfc $e.TableNameSingular }}' && s.selectionSet.selections).selectionSet.selections[0].selectionSet.selections.map(s => Query.escapeId(s.name.value));
+				_sql = 'SELECT ' + _columns + ' FROM {{ $tnt }} ' + _where.query;
 			}
 			return _invokeAfterFilters(
 				queryAfterHooks['{{ lowerfc $e.TableNameSingular }}'],
-				Query.exec(_context.db || _db, _sql, _params, {{$e.TableNameSingular}}, _fn),
+				Query.exec(_context.db || _db, _sql, _params, {{$e.TableNameSingular}}, _fn, _context),
 				_context,
-				_info
+				_info,
+				filter.range,
+				_agg
 			);
 		};
 	}
@@ -961,41 +1178,53 @@ export default class {{ $e.TableNameSingular }} {
 		return this;
 	}
 	{{- if $col.PrimaryKey }}
-	static findByPrimaryKey(db, _{{$col.SQLColumnName}}, context) {
-		return new Promise (
-			async (resolve, reject) => {
-				try {
-					const filter = helper.buildConditionFilter({ limit : 1 }, '{{$tn}}', '{{$col.SQLColumnName}}', _{{$col.SQLColumnName}});
+	static findByPrimaryKey(db, _{{$col.SQLColumnName}}, context, info) {
+		const pk = _{{$col.SQLColumnName}};
+		if (pk === null || pk === undefined || pk === '') {
+			return Promise.resolve();
+		}
+		let dataloader = context.dataloaders.{{$e.TableNameSingular}}_primarykey;
+		if (!dataloader) {
+			dataloader = new Dataloader(ids => {
+				if (ids.length) {
+					const mapper = rows => {
+						return ids.map(id => {
+							const row = rows.find(row => row.{{$col.SQLColumnName}} === id);
+							if (!row) {
+								return null;
+							}
+							return new {{$e.TableNameSingular}}(row, context);
+						});
+					};
+					const filter = helper.buildConditionFilter({}, '{{$tn}}', '{{$col.SQLColumnName}}', ids, 'IN');
 					const where = Filter.toWhere(helper.augmentFilter(filter, context, {{ $e.TableNameSingular }}));
-					const q = QUERY_PREFIX + where.query;
-					const r = await Query.exec(context.db || db, q, where.params, {{$e.TableNameSingular}}, COLUMN_NAMES);
-					if (r && r.length) {
-						resolve(r[0]);
-					} else {
-						resolve();
-					}
-				} catch (ex) {
-					reject(ex);
+					const _columns = _info.operation.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === '{{ lowerfc $e.TableNameSingular }}' && s.selectionSet.selections).selectionSet.selections[0].selectionSet.selections.map(s => Query.escapeId(s.name.value));
+					const _q = 'SELECT ' + _columns + ' FROM {{ $tnt }} ' + where.query;
+					return Query.exec(context.db || db, q, where.params, {{$e.TableNameSingular}}, null, context, mapper);
+				} else {
+					return Promise.resolve([]);
 				}
-			}
-		);
+			}, {batch:true});
+			context.dataloaders.{{$e.TableNameSingular}}_primarykey = dataloader;
+		}
+		return dataloader.load(_{{$col.SQLColumnName}});
 	}
-	static findBy{{ $col.Name }}(db, _{{$col.SQLColumnName}}, context) {
-		return {{ $e.TableNameSingular }}.findByPrimaryKey(db, _{{$col.SQLColumnName}}, context);
+	static findBy{{ $col.Name }}(db, _{{$col.SQLColumnName}}, context, info) {
+		return {{ $e.TableNameSingular }}.findByPrimaryKey(db, _{{$col.SQLColumnName}}, context, info);
 	}
 	{{- else }}
 	{{- if $col.Index}}
 	static findBy{{ $col.Name }}(db, _{{$col.SQLColumnName}}, context, args) {
 		const filter = helper.buildArgsFilter('{{$tn}}', args);
 		const cond = Filter.toWherePrepend(helper.augmentFilter(helper.scopeFilter(filter, '{{$tn}}'), context, {{ $e.TableNameSingular }}), '{{$col.SQLColumnName}}', _{{$col.SQLColumnName}});
-		const q = QUERY_PREFIX + cond.query;
-		return Query.exec(context.db || db, q, cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES);
+		const q = QUERY_ALL_PREFIX + cond.query;
+		return Query.exec(context.db || db, q, cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES, context);
 	}
 	{{- end }}
 	{{- end }}
 	{{- end }}
 	static find(db, filter, context, args) {
-		let sql = QUERY_PREFIX;
+		let sql = QUERY_ALL_PREFIX;
 		filter = helper.buildArgsFilter('{{$tn}}', args, filter);
 		filter = helper.scopeFilter(filter, '{{$tn}}');
 		if (filter.tables) {
@@ -1007,25 +1236,20 @@ export default class {{ $e.TableNameSingular }} {
 		}
 		const where = Filter.toWhere(helper.augmentFilter(filter, context, {{ $e.TableNameSingular }}));
 		sql += where.query;
-		return Query.exec(context.db || db, sql, where.params, {{$e.TableNameSingular}}, COLUMN_NAMES);
+		return Query.exec(context.db || db, sql, where.params, {{$e.TableNameSingular}}, COLUMN_NAMES, context);
 	}
 	{{- if $e.HasSQLAssociations }}
 	{{- range $i, $a := $e.SQLAssociations }}
 	{{- if GraphQLAssocationTypeIs $a "belongs_to" }}
 	static findBy{{ title $a.Name }}{{ camel $a.ForeignKey }}(_db, _{{ $a.PrimaryKey }}, _context, _args) {
-		return new Promise(
-			async(_resolve, _reject) => {
-				try {
-					const _filter = helper.buildArgsFilter('{{$tn}}', _args);
-					const _cond = Filter.toWhere(helper.augmentFilter(helper.buildConditionFilter(_filter, '{{$tn}}', '{{$a.PrimaryKey}}', _{{ $a.PrimaryKey }}), _context, {{ $e.TableNameSingular }}));
-					const _q = QUERY_PREFIX + _cond.query;
-					const _result = await Query.exec(_context.db || _db, _q, _cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES);
-					_resolve(_result);
-				} catch (_ex) {
-					_reject(_ex);
-				}
-			}
-		);
+		const pk = _{{ $a.PrimaryKey }};
+		if (pk === null || pk === undefined) {
+			return Promise.resolve();
+		}
+		const _filter = helper.buildArgsFilter('{{$tn}}', _args);
+		const _cond = Filter.toWhere(helper.augmentFilter(helper.buildConditionFilter(_filter, '{{$tn}}', '{{$a.PrimaryKey}}', pk), _context, {{ $e.TableNameSingular }}));
+		const _q = QUERY_ALL_PREFIX + _cond.query;
+		return Query.exec(_context.db || _db, _q, _cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES, _context);
 	}
 	{{- end }}
 	{{- end }}
@@ -1233,7 +1457,7 @@ export function returnAssociation(assoc, db, obj, info, context, args) {
 			}
 			return resolve(result);
 		} catch (ex) {
-			console.log(assoc);
+			console.error(assoc);
 			console.error('query failed', ex);
 			reject(ex);
 		}
@@ -1289,4 +1513,29 @@ export function scopeFilter(filter, table) {
 	return filter;
 }
 
+const limitRE = /(LIMIT [\d]+,\s?[\d]+)/;
+
+export function removeRange(sql) {
+	return sql.replace(limitRE, '');
+}
+`
+
+const graphqlFragmentMatcher = `const FragmentMatcher = {
+	__schema: {
+		types: [
+	{{- range $i, $p := .Unions }}
+			{
+				kind: 'UNION',
+				name: '{{ $p.Union }}',
+				possibleTypes: [
+		{{- range $k, $v := $p.Tables }}
+					{ name: '{{ SnakeToCamel $v }}' },
+		{{- end }}
+				],
+			},
+	{{- end }}
+		],
+	},
+};
+export default FragmentMatcher;
 `

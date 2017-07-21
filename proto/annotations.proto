@@ -31,6 +31,15 @@ message SQLFieldOptions {
 message GraphQLType {
   string name = 1;
   string type = 2;
+  bool generate = 3;
+  string definition = 4;
+}
+
+message GraphQLUnion {
+  string name = 1;
+  string id = 2;
+  string type = 3;
+  string tables = 4;
 }
 
 message SQLMessageOptions {
@@ -75,16 +84,25 @@ message SQLMessageOptions {
   SQLAssociation has_many9 = 48;
   SQLAssociation has_many10 = 49;
   bool nogenerate = 50;
-  GraphQLType add_type = 51;
-  GraphQLType add_type1 = 52;
-  GraphQLType add_type2 = 53;
-  GraphQLType add_type3 = 54;
-  GraphQLType add_type4 = 55;
-  GraphQLType add_type5 = 56;
-  GraphQLType add_type6 = 57;
-  GraphQLType add_type7 = 58;
-  GraphQLType add_type8 = 59;
-  GraphQLType add_type9 = 60;
+  GraphQLType gql_add_type = 51;
+  GraphQLType gql_add_type1 = 52;
+  GraphQLType gql_add_type2 = 53;
+  GraphQLType gql_add_type3 = 54;
+  GraphQLType gql_add_type4 = 55;
+  GraphQLType gql_add_type5 = 56;
+  GraphQLType gql_add_type6 = 57;
+  GraphQLType gql_add_type7 = 58;
+  GraphQLType gql_add_type8 = 59;
+  GraphQLType gql_add_type9 = 60;
+  GraphQLUnion gql_union = 61;
+  GraphQLUnion gql_union2 = 62;
+  GraphQLUnion gql_union3 = 63;
+  GraphQLUnion gql_union4 = 64;
+  GraphQLUnion gql_union5 = 65;
+  GraphQLUnion gql_union6 = 66;
+  GraphQLUnion gql_union7 = 67;
+  GraphQLUnion gql_union8 = 68;
+  GraphQLUnion gql_union9 = 69;
 }
 
 message SQLFileOptions {

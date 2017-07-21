@@ -96,7 +96,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.BelongsTo != nil {
 				assocEntity, err := findEntityByName(s.BelongsTo.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.BelongsTo.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
@@ -110,7 +110,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.BelongsTo2 != nil {
 				assocEntity, err := findEntityByName(s.BelongsTo2.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.BelongsTo2.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
@@ -124,7 +124,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.BelongsTo3 != nil {
 				assocEntity, err := findEntityByName(s.BelongsTo3.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.BelongsTo3.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
@@ -138,7 +138,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.BelongsTo4 != nil {
 				assocEntity, err := findEntityByName(s.BelongsTo4.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.BelongsTo4.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
@@ -152,7 +152,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.BelongsTo5 != nil {
 				assocEntity, err := findEntityByName(s.BelongsTo5.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.BelongsTo5.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
@@ -166,7 +166,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.BelongsTo6 != nil {
 				assocEntity, err := findEntityByName(s.BelongsTo6.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.BelongsTo6.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
@@ -180,7 +180,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.BelongsTo7 != nil {
 				assocEntity, err := findEntityByName(s.BelongsTo7.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.BelongsTo7.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
@@ -194,7 +194,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.BelongsTo8 != nil {
 				assocEntity, err := findEntityByName(s.BelongsTo8.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.BelongsTo8.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
@@ -208,7 +208,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.BelongsTo9 != nil {
 				assocEntity, err := findEntityByName(s.BelongsTo9.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.BelongsTo9.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
@@ -222,7 +222,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.BelongsTo10 != nil {
 				assocEntity, err := findEntityByName(s.BelongsTo10.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.BelongsTo10.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationBelongsTo,
@@ -236,7 +236,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasMany != nil {
 				assocEntity, err := findEntityByName(s.HasMany.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasMany.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
@@ -250,7 +250,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasMany2 != nil {
 				assocEntity, err := findEntityByName(s.HasMany2.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasMany2.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
@@ -264,7 +264,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasMany3 != nil {
 				assocEntity, err := findEntityByName(s.HasMany3.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasMany3.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
@@ -278,7 +278,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasMany4 != nil {
 				assocEntity, err := findEntityByName(s.HasMany4.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasMany4.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
@@ -292,7 +292,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasMany5 != nil {
 				assocEntity, err := findEntityByName(s.HasMany5.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasMany5.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
@@ -306,7 +306,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasMany6 != nil {
 				assocEntity, err := findEntityByName(s.HasMany6.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasMany6.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
@@ -320,7 +320,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasMany7 != nil {
 				assocEntity, err := findEntityByName(s.HasMany7.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasMany7.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
@@ -334,7 +334,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasMany8 != nil {
 				assocEntity, err := findEntityByName(s.HasMany8.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasMany8.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
@@ -348,7 +348,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasMany9 != nil {
 				assocEntity, err := findEntityByName(s.HasMany9.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasMany9.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
@@ -362,7 +362,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasMany10 != nil {
 				assocEntity, err := findEntityByName(s.HasMany10.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasMany10.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasMany,
@@ -376,7 +376,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasOne != nil {
 				assocEntity, err := findEntityByName(s.HasOne.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasOne.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
@@ -390,7 +390,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasOne2 != nil {
 				assocEntity, err := findEntityByName(s.HasOne2.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasOne2.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
@@ -404,7 +404,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasOne3 != nil {
 				assocEntity, err := findEntityByName(s.HasOne3.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasOne3.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
@@ -418,7 +418,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasOne4 != nil {
 				assocEntity, err := findEntityByName(s.HasOne4.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasOne4.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
@@ -432,7 +432,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasOne5 != nil {
 				assocEntity, err := findEntityByName(s.HasOne5.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasOne5.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
@@ -446,7 +446,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasOne6 != nil {
 				assocEntity, err := findEntityByName(s.HasOne6.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasOne6.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
@@ -460,7 +460,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasOne7 != nil {
 				assocEntity, err := findEntityByName(s.HasOne7.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasOne7.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
@@ -474,7 +474,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasOne8 != nil {
 				assocEntity, err := findEntityByName(s.HasOne8.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasOne8.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
@@ -488,7 +488,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasOne9 != nil {
 				assocEntity, err := findEntityByName(s.HasOne9.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasOne9.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
@@ -502,7 +502,7 @@ func (e Entity) SQLAssociations() []SQLAssociation {
 			if s.HasOne10 != nil {
 				assocEntity, err := findEntityByName(s.HasOne10.Table)
 				if err != nil {
-					panic(err)
+					panic("cannot find association table " + s.HasOne10.Table + " on " + e.Name)
 				}
 				a = append(a, SQLAssociation{
 					Type:       SQLAssocationHasOne,
