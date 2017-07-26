@@ -702,6 +702,68 @@ const associationAfterHooks = {};
 const queryBeforeHooks = {};
 const queryAfterHooks = {};
 
+const findSelection = (_info, _name, _cls) => {
+	if (_info.operation && _info.operation.selectionSet && _info.operation.selectionSet.selections) {
+		let found = _info.operation.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === '{{ lowerfc $e.TableNameSingular }}' && s.selectionSet.selections);
+		if (found && found.selectionSet && found.selectionSet.selections) {
+			found = found.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === _name);
+			if (found) {
+				found = {
+					operation: {
+						selectionSet: {
+							selections: [{
+								kind: 'Field',
+								name: {
+									value: _cls.table
+								},
+								selectionSet: {
+									selections:found.selectionSet.selections[0].selectionSet.selections
+								}
+							}]
+						}
+					}
+				};
+			}
+		}
+		return found;
+	}
+};
+
+const findColumns = (_info, _cls) => {
+	let columns;
+	if (_info.operation && _info.operation.selectionSet && _info.operation.selectionSet.selections) {
+		const x = _info.operation.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === _cls.table && s.selectionSet.selections);
+		columns = x && x.selectionSet.selections.map(s => s.name.value);
+	}
+	columns = columns || _cls.columns();
+	const t = Query.escapeId(_cls.table);
+	const found = {}, results = [t + '.' + Query.escapeId(_cls.PRIMARY_KEY)];
+	const add = n => {
+		let column;
+		const a = _cls.getAssociation(n);
+		if (a) {
+			column = t + '.' + Query.escapeId(a.primarykey);
+		} else {
+			switch(n) {
+				{{- range $i, $p := $e.AdditionalGraphQLUnions }}
+				case '{{ $p.Name }}': {
+					column = t + '.' + Query.escapeId('{{ $p.ID }}');
+					add('{{ $p.Type }}');
+					break;
+				}
+				{{- end }}
+			}
+			column = column || t + '.' + Query.escapeId(n);
+		}
+		if (!found[column]) {
+			found[column] = 1;
+			results.push(column);
+		}
+	};
+	columns.forEach(add);
+	return results.join(', ');
+}
+
 /**
  * {{ $e.TableNameSingular }}
  * @class
@@ -840,6 +902,11 @@ export default class {{ $e.TableNameSingular }} {
 	}
 	{{- $l := len $e.Properties }}
 	{{- range $i, $col := $e.Properties }}
+	{{- if $col.PrimaryKey }}
+	static get PRIMARY_KEY() {
+		return '{{$col.SQLColumnName}}';
+	}
+	{{- end }}
 	static get {{$col.SQLColumnName | upcase}}() {
 		return '{{$col.SQLColumnName}}';
 	}
@@ -985,7 +1052,7 @@ export default class {{ $e.TableNameSingular }} {
 		};
 		{{- else }}
 		{{- if $col.Index}}
-		_resolvers.Query.{{ lowerfc $e.TableNamePlural }}By{{$col.Name}} = async (root, { {{$col.SQLColumnName}}, filter, offset, limit, sort, sortOrder }, context, info) => {
+		_resolvers.Query.{{ lowerfc $e.TableNamePlural }}By{{$col.Name}} = async (root, { {{$col.SQLColumnName}}, filter, offset, limit, sort, sortOrder }, context, _info) => {
 			filter = helper.filterWithLimit(filter, offset, limit);
 			filter = helper.filterWithSort(filter, '{{$tn}}', sort, sortOrder);
 			filter = helper.augmentFilter(filter, context, _cls);
@@ -995,12 +1062,12 @@ export default class {{ $e.TableNameSingular }} {
 				_context,
 				_info
 			);
-			const cond = Filter.toWherePrepend(filter, '{{$col.SQLColumnName}}', {{$col.SQLColumnName}});
-			const _columns = _info.operation.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === '{{ lowerfc $e.TableNamePlural }}' && s.selectionSet.selections).selectionSet.selections[0].selectionSet.selections.map(s => Query.escapeId(s.name.value));
-			const _q = 'SELECT ' + _columns + ' FROM {{ $tnt }} ' + cond.query;
+			const _cond = Filter.toWherePrepend(filter, '{{$col.SQLColumnName}}', {{$col.SQLColumnName}});
+			const _columns = findColumns(_info, _cls);
+			const _q = 'SELECT ' + _columns + ' FROM {{ $tnt }} ' + _cond.query;
 			return _invokeAfterFilters(
 				queryAfterHooks['{{ lowerfc $e.TableNamePlural }}By{{$col.Name}}'],
-				Query.exec(_context.db || _db, _q, cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES, _context),
+				Query.exec(_context.db || _db, _q, _cond.params, {{$e.TableNameSingular}}, COLUMN_NAMES, _context),
 				_context,
 				_info
 			);
@@ -1036,17 +1103,24 @@ export default class {{ $e.TableNameSingular }} {
 			{{- end }}
 			{{- range $i, $p := $e.AdditionalGraphQLUnions }}
 			{{ $p.Name }}: (obj, args, context, info) => {
+				//console.log('-->  {{ $p.Name }} {{ $p.Type }}', obj.{{ $p.Type }});
 				switch(obj.{{ $p.Type }}) {
 				{{- range $k, $v := $p.Mapping }}
 					case '{{$k}}': {
 						const pk = obj.{{ $p.ID }};
 						if (pk !== null && pk !== undefined) {
+							info = findSelection(info, '{{ $p.Name }}', {{ $v }});
 							return {{ $v }}.findByPrimaryKey(context.db, pk, context, info);
 						}
 					}
 				{{- end }}
 				}
 			},
+			{{- end }}
+		};
+		_cls.references = {
+			{{- range $i, $p := $e.AdditionalGraphQLUnions }}
+			{{ $p.Name }}: ['{{ $p.ID }}', '{{ $p.Type}}'],
 			{{- end }}
 		};
 		{{- range $i, $p := $e.AdditionalGraphQLUnions }}
@@ -1078,21 +1152,21 @@ export default class {{ $e.TableNameSingular }} {
 		_resolvers.{{ $e.TableNameSingular }}Optionals = Object.assign({}, associationResolvers);
 		_resolvers.{{ $e.TableNameSingular }}Aggregation = Object.assign({
 			distinct: function(obj, args, context, info) {
-				const result = helper.aggregateResult(info, obj);
+				const result = helper.aggregateResult(info, obj, {{ $e.TableNameSingular }});
 				return [result];
 			},
  			{{- if len $amf }}
 			sum: function(obj, args, context, info) {
-				return helper.aggregateResult(info, obj);
+				return helper.aggregateResult(info, obj, {{ $e.TableNameSingular }});
 			},
 			avg: function(obj, args, context, info) {
-				return helper.aggregateResult(info, obj);
+				return helper.aggregateResult(info, obj, {{ $e.TableNameSingular }});
 			},
 			min: function(obj, args, context, info) {
-				return helper.aggregateResult(info, obj);
+				return helper.aggregateResult(info, obj, {{ $e.TableNameSingular }});
 			},
 			max: function(obj, args, context, info) {
-				return helper.aggregateResult(info, obj);
+				return helper.aggregateResult(info, obj, {{ $e.TableNameSingular }});
 			},
 			{{ end }}
 		}, associationResolvers);
@@ -1108,7 +1182,7 @@ export default class {{ $e.TableNameSingular }} {
 				_info
 			);
 			const _where = Filter.toWhere(filter);
-			const _columns = _info.operation.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === '{{ lowerfc $e.TableNamePlural }}' && s.selectionSet.selections).selectionSet.selections[0].selectionSet.selections.map(s => Query.escapeId(s.name.value));
+			const _columns = findColumns(_info, {{$e.TableNameSingular}});
 			const _sql = 'SELECT ' + _columns + ' FROM {{ $tnt }} ' + _where.query;
 			_context._total_query = () => Query.exec(_context.db || _db, QUERY_COUNT_PREFIX + helper.removeRange(_where.query), _where.params, {{$e.TableNameSingular}}, (_mi, _row) => {_mi.count = _row.count; _mi}, _context)
 			return _invokeAfterFilters(
@@ -1130,11 +1204,13 @@ export default class {{ $e.TableNameSingular }} {
 				_aggQuery.agg.forEach(_agg => {
 					_a = helper.buildAggregationFilter(_a, _agg.name, '{{ $tn }}', _agg.fields, _aggQuery.groups, _aggQuery.fields, _agg.args, COLUMN_NAMES, '{{ $pkc }}');
 				});
+				filter = helper.augmentFilter(_a, _context, _cls)
 				if (_a.count) {
 					_fn = (_mi, _row) => {_mi.count = _row.count; _mi};
 					_trimlimit = true;
+				} else {
+					filter.limit = filter.limit || -1;
 				}
-				filter = helper.augmentFilter(_a, _context, _cls)
 				filter = await _invokeBeforeFilters(
 					queryBeforeHooks['{{ lowerfc $e.TableNameSingular }}'],
 					filter,
@@ -1156,8 +1232,7 @@ export default class {{ $e.TableNameSingular }} {
 				);
 				const _where = Filter.toWhere(filter, _context, _cls);
 				_params = _where.params;
-				const _columns = _info.operation.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === '{{ lowerfc $e.TableNameSingular }}' && s.selectionSet.selections).selectionSet.selections[0].selectionSet.selections.map(s => Query.escapeId(s.name.value));
-				_sql = 'SELECT ' + _columns + ' FROM {{ $tnt }} ' + _where.query;
+				_sql = QUERY_ALL_PREFIX + _where.query;
 			}
 			return _invokeAfterFilters(
 				queryAfterHooks['{{ lowerfc $e.TableNameSingular }}'],
@@ -1168,6 +1243,7 @@ export default class {{ $e.TableNameSingular }} {
 				_agg
 			);
 		};
+		_cls.findColumns = findColumns;
 	}
 	{{- range $i, $col := $e.Properties }}
 	get{{$col.Name}}() {
@@ -1178,7 +1254,7 @@ export default class {{ $e.TableNameSingular }} {
 		return this;
 	}
 	{{- if $col.PrimaryKey }}
-	static findByPrimaryKey(db, _{{$col.SQLColumnName}}, context, info) {
+	static findByPrimaryKey(db, _{{$col.SQLColumnName}}, context, _info) {
 		const pk = _{{$col.SQLColumnName}};
 		if (pk === null || pk === undefined || pk === '') {
 			return Promise.resolve();
@@ -1198,9 +1274,14 @@ export default class {{ $e.TableNameSingular }} {
 					};
 					const filter = helper.buildConditionFilter({}, '{{$tn}}', '{{$col.SQLColumnName}}', ids, 'IN');
 					const where = Filter.toWhere(helper.augmentFilter(filter, context, {{ $e.TableNameSingular }}));
-					const _columns = _info.operation.selectionSet.selections.find(s => s.kind === 'Field' && s.name.value === '{{ lowerfc $e.TableNameSingular }}' && s.selectionSet.selections).selectionSet.selections[0].selectionSet.selections.map(s => Query.escapeId(s.name.value));
-					const _q = 'SELECT ' + _columns + ' FROM {{ $tnt }} ' + where.query;
-					return Query.exec(context.db || db, q, where.params, {{$e.TableNameSingular}}, null, context, mapper);
+					let _q;
+					if (_info) {
+						const _columns = findColumns(_info, {{ $e.TableNameSingular }});
+						_q = 'SELECT ' + _columns + ' FROM {{ $tnt }} ' + where.query;
+					} else {
+						_q = QUERY_ALL_PREFIX + where.query;
+					}
+					return Query.exec(context.db || db, _q, where.params, {{$e.TableNameSingular}}, null, context, mapper);
 				} else {
 					return Promise.resolve([]);
 				}
@@ -1263,15 +1344,15 @@ const graphqlSchemaTemplate = `
 
 const graphqlQueryHelper = `import {Query, Filter} from 'gator-js';
 
-const isValidField = (a) => !/^__/.test(a);
+const isValidField = (a, cls) => !/^__/.test(a) && !cls || (cls && cls.columns().indexOf(a) != -1);
 const isAgg = (s) => /^(distinct|min|max|sum|avg|count)$/.test(s);
 
 function fieldScope(table, field) {
 	return Query.escapeId(table) + '.' + Query.escapeId(field);
 }
 
-function findFields(info) {
-	return info.fieldNodes.map(fn => fn.selectionSet.selections.map(s => s.name.value).filter(isValidField))[0];
+function findFields(info, cls) {
+	return info.fieldNodes.map(fn => fn.selectionSet.selections.map(s => s.name.value).filter(f => isValidField(f, cls)))[0];
 }
 
 export function buildAggregationFilter(filter, agg, table, fields, grouping, columns, args, all_fields, primary_key) {
@@ -1394,10 +1475,11 @@ export function findAggregationQuery(info, cls) {
 		const fields = [];
 		ss.selections.forEach(s => {
 			if (isAgg(s.name.value)) {
+				const f = s.selectionSet && s.selectionSet.selections.filter(sel => isValidField(sel.name.value, cls)).map(sel => sel.name.value);
 				agg.push({
 					table: cls.table,
 					name: s.name.value,
-					fields: s.selectionSet && s.selectionSet.selections.filter(sel => isValidField(sel.name.value)).map(sel => sel.name.value),
+					fields: f,
 					args: s.arguments && s.arguments.map(a => ({name:a.name.value, value:a.value.value}))
 				});
 			} else {
@@ -1407,13 +1489,24 @@ export function findAggregationQuery(info, cls) {
 						table: assoc.table,
 						pk: assoc.type === 'has_many' ? assoc.primarykey : assoc.foreignkey,
 						fk: assoc.type === 'has_many' ? assoc.foreignkey : assoc.primarykey,
-						fields: s.selectionSet && s.selectionSet.selections.filter(sel => isValidField(sel.name.value)).map(sel => sel.name.value)
+						fields: s.selectionSet && s.selectionSet.selections.filter(sel => isValidField(sel.name.value, cls)).map(sel => sel.name.value)
 					});
-				} else if (isValidField(s.name.value)) {
+				} else if (isValidField(s.name.value, cls)) {
 					fields.push({
 						table: cls.table,
 						field: s.name.value
 					});
+				} else {
+					const n = s.name.value;
+					const ref = cls.references[n];
+					if (ref) {
+						ref.forEach(name => {
+							fields.push({
+								table: cls.table,
+								field: name
+							});
+						});
+					}
 				}
 			}
 		});
@@ -1423,7 +1516,7 @@ export function findAggregationQuery(info, cls) {
 	}
 }
 
-export function aggregateResult(info, obj) {
+export function aggregateResult(info, obj, cls) {
 	const fields = findFields(info);
 	const result = {};
 	fields.forEach(k => result[k] = obj[k]);
