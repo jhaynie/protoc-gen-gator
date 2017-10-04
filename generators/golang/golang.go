@@ -82,8 +82,15 @@ func toTestData(p *types.Property, forUpdate bool) string {
 	switch t {
 	case "string":
 		{
-			if p.SQLType() == "JSON" {
-				return `"{}"`
+			switch p.SQLType() {
+			case "JSON":
+				{
+					return `"{}"`
+				}
+			case "DATE":
+				{
+					return `"2006-01-02"`
+				}
 			}
 			// trim to max length of string if provided
 			l := toLength(p.SQLType())
@@ -551,6 +558,126 @@ func toSetterSuffix(property *types.Property) string {
 	return ""
 }
 
+func toCSVString(property *types.Property, t string) string {
+	switch toGoType(property) {
+	case "*string", "*bool", "int32", "int64", "uint32", "uint64", "*int32", "*int64", "*uint32", "*uint64", "float32", "float64", "*float32", "*float64":
+		{
+			return "toCSVString(" + t + "." + property.Field.Name + ")"
+		}
+	case "string":
+		{
+			return t + "." + property.Field.Name
+		}
+	case "bool":
+		{
+			return "toCSVBool(" + t + "." + property.Field.Name + ")"
+		}
+	case "[]byte":
+		{
+			return "base64.StdEncoding.EncodeToString(" + t + "." + property.Field.Name + ")"
+		}
+	case "*timestamp.Timestamp":
+		{
+			return "toCSVDate(" + t + "." + property.Field.Name + ")"
+		}
+	default:
+		{
+			return "toCSVString(" + t + "." + property.Field.Name + ")"
+		}
+	}
+}
+
+func fromCSVString(property *types.Property, i int) string {
+	t := fmt.Sprintf("record[%d]", i)
+	switch toGoType(property) {
+	case "*string":
+		{
+			return "fromStringPointer(" + t + ")"
+		}
+	case "string":
+		{
+			return t
+		}
+	case "bool":
+		{
+			return "fromCSVBool(" + t + ")"
+		}
+	case "*bool":
+		{
+			return "fromCSVBoolPointer(" + t + ")"
+		}
+	case "int32":
+		{
+			return "fromCSVInt32(" + t + ")"
+		}
+	case "int64":
+		{
+			return "fromCSVInt64(" + t + ")"
+		}
+	case "uint32":
+		{
+			return "fromCSVUint32(" + t + ")"
+		}
+	case "uint64":
+		{
+			return "fromCSVUint64(" + t + ")"
+		}
+	case "*int32":
+		{
+			return "fromCSVInt32Pointer(" + t + ")"
+		}
+	case "*int64":
+		{
+			return "fromCSVInt64Pointer(" + t + ")"
+		}
+	case "*uint32":
+		{
+			return "fromCSVUint32Pointer(" + t + ")"
+		}
+	case "*uint64":
+		{
+			return "fromCSVUint64Pointer(" + t + ")"
+		}
+	case "float32":
+		{
+			return "fromCSVFloat32(" + t + ")"
+		}
+	case "float64":
+		{
+			return "fromCSVFloat64(" + t + ")"
+		}
+	case "*float32":
+		{
+			return "fromCSVFloat32Pointer(" + t + ")"
+		}
+	case "*float64":
+		{
+			return "fromCSVFloat64Pointer(" + t + ")"
+		}
+	case "[]byte":
+		{
+			return "fromCSVByteArray(" + t + ")"
+		}
+	case "*timestamp.Timestamp":
+		{
+			return "fromCSVDate(" + t + ")"
+		}
+	default:
+		{
+			if property.IsEnumeration() {
+				n := strings.Split(property.Field.Descriptor.GetTypeName(), ".")
+				et := n[len(n)-1]
+				var p string
+				if !property.Nullable {
+					p = "*"
+				}
+				return p + "to" + et + "(" + t + ")"
+			}
+			return t
+		}
+	}
+}
+
 func (g *gogenerator) Generate(scheme string, file *types.File, entities []types.Entity) ([]*types.Generation, error) {
 	results := make([]*types.Generation, 0)
 	fn := make(map[string]interface{})
@@ -568,6 +695,8 @@ func (g *gogenerator) Generate(scheme string, file *types.File, entities []types
 	fn["GoEnumPointer"] = toGoEnumPointer
 	fn["GoEnumToString"] = toGoEnumString
 	fn["GoTestData"] = toTestData
+	fn["CSVStringValue"] = toCSVString
+	fn["CSVStringFromValue"] = fromCSVString
 	fn["SQL"] = toSQL
 	for _, entity := range entities {
 		fmt.Fprintln(os.Stderr, "generating "+entity.Name)
@@ -625,8 +754,28 @@ const goTemplate = `
 package {{.Package}}
 
 import (
+	"io"
+	"time"
+	"encoding/csv"
+	"encoding/base64"
+	"encoding/json"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/jhaynie/go-gator/orm"
 )
+
+// compiler checks for interface implementations. if the generated model
+// doesn't implement these interfaces for some reason you'll get a compiler error
+
+var _ Model = (*{{$m}})(nil)
+var _ CSVWriter = (*{{$m}})(nil)
+var _ JSONWriter = (*{{$m}})(nil)
+
+{{- if .HasChecksum }}
+var _ Checksum = (*{{$m}})(nil)
+{{- end }}
+
+// {{$m}}TableName is the name of the table in SQL
+const {{$m}}TableName = "{{$tn}}"
 
 {{ GoEnumDefinitions . }}
 
@@ -638,6 +787,264 @@ type {{$m}} struct {
 	{{ pad $col.Field.Name $w }}  {{ pad $gt 27 }} {{ $tags }}
 	{{- end }}
 }
+
+// TableName returns the SQL table name for {{$m}} and satifies the Model interface
+func (t *{{$m}}) TableName() string {
+	return {{$m}}TableName
+}
+
+// WriteCSV will serialize the {{$m}} instance to the writer as CSV and satisfies the CSVWriter interface
+func (t *{{$m}}) WriteCSV(w *csv.Writer) error {
+	return w.Write([]string{
+		{{- range $i, $col := $columns }}
+		{{CSVStringValue $col "t"}},
+		{{- end}}
+	})
+}
+
+// WriteJSON will serialize the {{$m}} instance to the writer as JSON and satisfies the JSONWriter interface
+func (t *{{$m}}) WriteJSON(w io.Writer, indent ...bool) error {
+	if indent != nil && len(indent) > 0 {
+		buf, err := json.MarshalIndent(t, "", "\t")
+		if err != nil {
+			return err
+		}
+		if _, err := w.Write(buf); err != nil {
+			return err
+		}
+		if _, err := w.Write([]byte("\n")); err != nil {
+			return err
+		}
+		return nil
+	}
+	buf, err := json.Marshal(t)
+	if err != nil {
+		return nil
+	}
+	if _, err := w.Write(buf); err != nil {
+		return err
+	}
+	if _, err := w.Write([]byte("\n")); err != nil {
+		return err
+	}
+	return nil
+}
+
+// New{{$m}}Reader creates a JSON reader which can read in {{$m}} objects serialized as JSON either as an array, single object or json new lines
+// and writes each {{$m}} to the channel provided
+func New{{$m}}Reader(r io.Reader, ch chan<- {{$m}}) error {
+	return Deserialize(r, func(buf json.RawMessage) error {
+		dec := json.NewDecoder(bytes.NewBuffer(buf))
+		e := {{$m}}{}
+		if err := dec.Decode(&e); err != nil {
+			return err
+		}
+		ch <- e
+		return nil
+	})
+}
+
+// NewCSV{{$m}}ReaderDir will read the reader as CSV and emit each record to the channel provided
+func NewCSV{{$m}}Reader(r io.Reader, ch chan<- {{$m}}) error {
+	cr := csv.NewReader(r)
+	for {
+		record, err := cr.Read()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		ch <- {{$m}}{
+			{{- range $i, $col := $columns }}
+			{{$col.Field.Name}}: {{CSVStringFromValue $col $i}},
+			{{- end}}
+		}
+	}
+	return nil
+}
+
+// NewCSV{{$m}}ReaderFile will read the file as a CSV and emit each record to the channel provided
+func NewCSV{{$m}}ReaderFile(fp string, ch chan<- {{$m}}) error {
+	f, err := os.Open(fp)
+	if err != nil {
+		return fmt.Errorf("error opening CSV file at %s. %v", fp, err)
+	}
+	var fc io.ReadCloser = f
+	if filepath.Ext(fp) == ".gz" {
+		gr, err := gzip.NewReader(f)
+		if err != nil {
+			return fmt.Errorf("error opening CSV file at %s. %v", fp, err)
+		}
+		fc = gr
+	}
+	defer f.Close()
+	defer fc.Close()
+	return NewCSV{{$m}}Reader(fc, ch)
+}
+
+// NewCSV{{$m}}ReaderDir will read the {{$tn}}.csv.gz file as a CSV and emit each record to the channel provided
+func NewCSV{{$m}}ReaderDir(dir string, ch chan<- {{$m}}) error {
+	return NewCSV{{$m}}ReaderFile(filepath.Join(dir, "{{$tn}}.csv.gz"), ch)
+}
+
+{{- if $pkp.PrimaryKey }}
+// {{$m}}CSVDeduper is a function callback which takes the existing value (a) and the new value (b) 
+// and the return value should be the one to use (or a new one, if applicable). return nil
+// to skip processing of this record
+type {{$m}}CSVDeduper func(a {{$m}}, b {{$m}}) *{{$m}}
+{{- end }}
+
+// New{{$m}}CSVWriterSize creates a batch writer that will write each {{$m}} into a CSV file
+{{- if $pkp.PrimaryKey }}
+{{- if .HasChecksum }}
+// this method will automatically de-duplicate entries using the primary key. if the checksum
+// for a newer item with the same primary key doesn't match a previously sent item, the newer
+// one will be used
+{{- end }}
+func New{{$m}}CSVWriterSize(w io.Writer, size int, dedupers ...{{$m}}CSVDeduper) (chan {{$m}}, chan bool, error) {
+{{- else }}
+func New{{$m}}CSVWriterSize(w io.Writer, size int) (chan {{$m}}, chan bool, error) {
+{{- end }}
+	cw := csv.NewWriter(w)
+	ch := make(chan {{$m}}, size)
+	done := make(chan bool)
+	go func() {
+		defer func() { done <- true }()
+		{{- if not $pkp.PrimaryKey }}
+		for e := range ch {
+			e.WriteCSV(cw)
+		}
+		{{- else }}
+		kv := make(map[{{GoType $pkp}}]*{{$m}})
+		var deduper {{$m}}CSVDeduper
+		if dedupers != nil && len(dedupers) > 0 {
+			deduper = dedupers[0]
+		}
+		for e := range ch {
+			pk := e.{{$pkp.Name}}
+			v := kv[pk]
+			if v == nil {
+				kv[pk] = &e
+				continue
+			}
+			if deduper != nil {
+				r := deduper(e, *v)
+				if r != nil {
+					kv[pk] = r
+				}
+				continue
+			}
+			{{- if .HasChecksum }}
+			if v.CalculateChecksum() != e.CalculateChecksum() {
+				kv[pk] = &e
+				continue
+			}
+			{{- end }}
+		}
+		for _, e := range kv {
+			e.WriteCSV(cw)
+		}
+		{{- end }}
+		cw.Flush()
+	}()
+	return ch, done, nil
+}
+
+// New{{$m}}CSVWriter creates a batch writer that will write each {{$m}} into a CSV file
+{{- if $pkp.PrimaryKey }}
+func New{{$m}}CSVWriter(w io.Writer, dedupers ...{{$m}}CSVDeduper) (chan {{$m}}, chan bool, error) {
+	return New{{$m}}CSVWriterSize(w, 100, dedupers...)
+{{- else }}
+func New{{$m}}CSVWriter(w io.Writer) (chan {{$m}}, chan bool, error) {
+	return New{{$m}}CSVWriterSize(w, 100)
+{{- end }}
+}
+
+// New{{$m}}CSVWriterDir creates a batch writer that will write each {{$m}} into a CSV file named {{$tn}}.csv.gz in dir
+{{- if $pkp.PrimaryKey }}
+func New{{$m}}CSVWriterDir(dir string, dedupers ...{{$m}}CSVDeduper) (chan {{$m}}, chan bool, error) {
+	return New{{$m}}CSVWriterFile(filepath.Join(dir, "{{$tn}}.csv.gz"), dedupers...)
+{{- else }}
+func New{{$m}}CSVWriterDir(dir string) (chan {{$m}}, chan bool, error) {
+	return New{{$m}}CSVWriterFile(filepath.Join(dir, "{{$tn}}.csv.gz"))
+{{- end }}
+}
+
+// New{{$m}}CSVWriterFile creates a batch writer that will write each {{$m}} into a CSV file
+{{- if $pkp.PrimaryKey }}
+func New{{$m}}CSVWriterFile(fn string, dedupers ...{{$m}}CSVDeduper) (chan {{$m}}, chan bool, error) {
+{{- else }}
+func New{{$m}}CSVWriterFile(fn string) (chan {{$m}}, chan bool, error) {
+{{- end }}
+	f, err := os.Create(fn)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error opening CSV file %s. %v", fn, err)
+	}
+	var fc io.WriteCloser = f
+	if filepath.Ext(fn) == ".gz" {
+		w := gzip.NewWriter(f)
+		fc = w
+	}
+	{{- if $pkp.PrimaryKey }}
+	ch, done, err := New{{$m}}CSVWriter(fc, dedupers...)
+	{{- else }}
+	ch, done, err := New{{$m}}CSVWriter(fc)
+	{{- end }}
+	if err != nil {
+		fc.Close()
+		f.Close()
+		return nil, nil, fmt.Errorf("error creating CSV writer for %s. %v", fn, err)
+	}
+	sdone := make(chan bool)
+	go func() {
+		// wait for our writer to finish
+		<- done
+		// close our files
+		fc.Close()
+		f.Close()
+		// signal our delegate channel
+		sdone <- true
+	}()
+	return ch, sdone, nil
+}
+
+type {{$m}}DBAction func(ctx context.Context, db *sql.DB, record {{$m}}) error
+
+// New{{$m}}DBWriterSize creates a DB writer that will write each issue into the DB
+func New{{$m}}DBWriterSize(ctx context.Context, db *sql.DB, errors chan<- error, size int, actions ...{{$m}}DBAction) (chan {{$m}}, chan bool, error) {
+	ch := make(chan {{$m}}, size)
+	done := make(chan bool)
+	var action {{$m}}DBAction
+	if actions != nil && len(actions) > 0 {
+		action = actions[0]
+	}
+	go func() {
+		defer func() { done <- true }()
+		for e := range ch {
+			if action != nil {
+				if err := action(ctx, db, e); err != nil {
+					errors <- err
+				}
+			} else {
+				if _, _, err := e.DBUpsert(ctx, db); err != nil {
+					errors <- err
+				}
+			}
+		}
+	}()
+	return ch, done, nil
+}
+
+// New{{$m}}DBWriter creates a DB writer that will write each issue into the DB
+func New{{$m}}DBWriter(ctx context.Context, db *sql.DB, errors chan<- error, actions ...{{$m}}DBAction) (chan {{$m}}, chan bool, error) {
+	return New{{$m}}DBWriterSize(ctx, db, errors, 100, actions...)
+}
+
+{{- range $i, $col := .Properties }}
+// {{$m}}Column{{$col.Field.Name}} is the {{$col.Field.Name}} SQL column name for the {{$m}} table
+const {{$m}}Column{{$col.Field.Name}} = "{{$col.SQLColumnName}}"
+const {{$m}}EscapedColumn{{$col.Field.Name}} = "{{$col.SQLColumnNameWithTick}}"
+{{- end }}
 
 {{- range $i, $col := .Properties }}
 
@@ -938,7 +1345,7 @@ func (t *{{$m}}) DBCreateIgnoreDuplicateTx(ctx context.Context, tx *sql.Tx) (sql
 // DeleteAll{{$tnp}} deletes all {{$m}} records in the database with optional filters
 func DeleteAll{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) error {
 	params := []interface{}{
-		orm.Table("{{$tn}}"),
+		orm.Table({{$m}}TableName),
 	}
 	if len(_params) > 0 {
 		for _, param := range _params {
@@ -953,7 +1360,7 @@ func DeleteAll{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) 
 // DeleteAll{{$tnp}}Tx deletes all {{$m}} records in the database with optional filters using the provided transaction
 func DeleteAll{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}) error {
 	params := []interface{}{
-		orm.Table("{{$tn}}"),
+		orm.Table({{$m}}TableName),
 	}
 	if len(_params) > 0 {
 		for _, param := range _params {
@@ -1046,7 +1453,7 @@ func (t *{{$m}}) DBUpdateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error)
 {{- end }}
 
 // DBUpsert will upsert the {{$m}} record in the database
-func (t *{{$m}}) DBUpsert(ctx context.Context, db *sql.DB) (bool, bool, error) {
+func (t *{{$m}}) DBUpsert(ctx context.Context, db *sql.DB, conditions ...interface{}) (bool, bool, error) {
 	{{- if .HasChecksum }}
 	checksum := t.CalculateChecksum()
 	if t.Get{{.Checksum}}() == checksum {
@@ -1054,7 +1461,15 @@ func (t *{{$m}}) DBUpsert(ctx context.Context, db *sql.DB) (bool, bool, error) {
 	}
 	t.{{GoChecksum . "checksum"}}
 	{{- end }}
-	q := "INSERT INTO {{$tnt}} ({{$cl}}) VALUES ({{.SQLColumnPlaceholders}}) ON DUPLICATE KEY UPDATE {{.SQLColumnUpsertList}}"
+	var q string
+	if conditions != nil && len(conditions) > 0 {
+		q = "INSERT INTO {{$tnt}} ({{$cl}}) VALUES ({{.SQLColumnPlaceholders}}) ON DUPLICATE KEY UPDATE "
+		for _, cond := range conditions {
+			q = fmt.Sprintf("%s %v ", q, cond)
+		}
+	} else {
+		q = "INSERT INTO {{$tnt}} ({{$cl}}) VALUES ({{.SQLColumnPlaceholders}}) ON DUPLICATE KEY UPDATE {{.SQLColumnUpsertList}}"
+	}
 	r, err := db.ExecContext(ctx, q,
 		{{- range $i, $col := $columns }}
 		{{- if $col.IsEnumeration }}
@@ -1072,7 +1487,7 @@ func (t *{{$m}}) DBUpsert(ctx context.Context, db *sql.DB) (bool, bool, error) {
 }
 
 // DBUpsertTx will upsert the {{$m}} record in the database using the provided transaction
-func (t *{{$m}}) DBUpsertTx(ctx context.Context, tx *sql.Tx) (bool, bool, error) {
+func (t *{{$m}}) DBUpsertTx(ctx context.Context, tx *sql.Tx, conditions ...interface{}) (bool, bool, error) {
 	{{- if .HasChecksum }}
 	checksum := t.CalculateChecksum()
 	if t.Get{{.Checksum}}() == checksum {
@@ -1080,7 +1495,15 @@ func (t *{{$m}}) DBUpsertTx(ctx context.Context, tx *sql.Tx) (bool, bool, error)
 	}
 	t.{{GoChecksum . "checksum"}}
 	{{- end }}
-	q := "INSERT INTO {{$tnt}} ({{$cl}}) VALUES ({{.SQLColumnPlaceholders}}) ON DUPLICATE KEY UPDATE {{.SQLColumnUpsertList}}"
+	var q string
+	if conditions != nil && len(conditions) > 0 {
+		q = "INSERT INTO {{$tnt}} ({{$cl}}) VALUES ({{.SQLColumnPlaceholders}}) ON DUPLICATE KEY UPDATE "
+		for _, cond := range conditions {
+			q = fmt.Sprintf("%s %v ", q, cond)
+		}
+	} else {
+		q = "INSERT INTO {{$tnt}} ({{$cl}}) VALUES ({{.SQLColumnPlaceholders}}) ON DUPLICATE KEY UPDATE {{.SQLColumnUpsertList}}"
+	}
 	r, err := tx.ExecContext(ctx, q,
 		{{- range $i, $col := $columns }}
 		{{- if $col.IsEnumeration }}
@@ -1159,7 +1582,7 @@ func Find{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) ([]*{
 	{{- range $i, $col := $columns }}
 		orm.Column("{{$col.SQLColumnName}}"),
 	{{- end }}
-		orm.Table("{{$tn}}"),
+		orm.Table({{$m}}TableName),
 	}
 	if len(_params) > 0 {
 		for _, param := range _params {
@@ -1205,7 +1628,7 @@ func Find{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}) ([]
 	{{- range $i, $col := $columns }}
 		orm.Column("{{$col.SQLColumnName}}"),
 	{{- end }}
-		orm.Table("{{$tn}}"),
+		orm.Table({{$m}}TableName),
 	}
 	if len(_params) > 0 {
 		for _, param := range _params {
@@ -1251,7 +1674,7 @@ func (t *{{$m}}) DBFind(ctx context.Context, db *sql.DB, _params ...interface{})
 	{{- range $i, $col := $columns }}
 		orm.Column("{{$col.SQLColumnName}}"),
 	{{- end }}
-		orm.Table("{{$tn}}"),
+		orm.Table({{$m}}TableName),
 	}
 	if len(_params) > 0 {
 		for _, param := range _params {
@@ -1285,7 +1708,7 @@ func (t *{{$m}}) DBFindTx(ctx context.Context, tx *sql.Tx, _params ...interface{
 	{{- range $i, $col := $columns }}
 		orm.Column("{{$col.SQLColumnName}}"),
 	{{- end }}
-		orm.Table("{{$tn}}"),
+		orm.Table({{$m}}TableName),
 	}
 	if len(_params) > 0 {
 		for _, param := range _params {
@@ -1317,7 +1740,7 @@ func (t *{{$m}}) DBFindTx(ctx context.Context, tx *sql.Tx, _params ...interface{
 func Count{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) (int64, error) {
 	params := []interface{}{
 		orm.Count("*"),
-		orm.Table("{{$tn}}"),
+		orm.Table({{$m}}TableName),
 	}
 	if len(_params) > 0 {
 		for _, param := range _params {
@@ -1337,7 +1760,7 @@ func Count{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) (int
 func Count{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}) (int64, error) {
 	params := []interface{}{
 		orm.Count("*"),
-		orm.Table("{{$tn}}"),
+		orm.Table({{$m}}TableName),
 	}
 	if len(_params) > 0 {
 		for _, param := range _params {
@@ -1357,7 +1780,7 @@ func Count{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}) (i
 func (t *{{$m}}) DBCount(ctx context.Context, db *sql.DB, _params ...interface{}) (int64, error) {
 	params := []interface{}{
 		orm.CountAlias("*", "count"),
-		orm.Table("{{$tn}}"),
+		orm.Table({{$m}}TableName),
 	}
 	if len(_params) > 0 {
 		for _, param := range _params {
@@ -1377,7 +1800,7 @@ func (t *{{$m}}) DBCount(ctx context.Context, db *sql.DB, _params ...interface{}
 func (t *{{$m}}) DBCountTx(ctx context.Context, tx *sql.Tx, _params ...interface{}) (int64, error) {
 	params := []interface{}{
 		orm.CountAlias("*", "count"),
-		orm.Table("{{$tn}}"),
+		orm.Table({{$m}}TableName),
 	}
 	if len(_params) > 0 {
 		for _, param := range _params {
@@ -1415,6 +1838,21 @@ func (t *{{$m}}) DBExistsTx(ctx context.Context, tx *sql.Tx) (bool, error) {
 		return false, err
 	}
 	return _{{$pkp.Name}}.Valid, nil
+}
+
+// PrimaryKeyColumn returns the column name for the primary key
+func (t *{{$m}}) PrimaryKeyColumn() string {
+	return {{$m}}Column{{$pkp.Name}}
+}
+
+// PrimaryKeyColumnType returns the primary key column Go type as a string
+func (t *{{$m}}) PrimaryKeyColumnType() string {
+	return "{{GoType $pkp}}"
+}
+
+// PrimaryKey returns the primary key column value
+func (t *{{$m}}) PrimaryKey() interface{} {
+	return t.{{$pkp.Name}}
 }
 
 {{- end -}}
@@ -1913,5 +2351,350 @@ func parseBinaryDateTime(num uint64, data []byte, loc *time.Location) (driver.Va
 		), nil
 	}
 	return nil, fmt.Errorf("invalid DATETIME packet length %d", num)
+}
+
+func toCSVBool(v bool) string {
+	if v {
+		return "1"
+	}
+	return "0"
+}
+
+func toCSVDate(t *timestamp.Timestamp) string {
+	tv, err := ptypes.Timestamp(t)
+	if err != nil {
+		return "NULL"
+	}
+	return tv.UTC().Format(time.RFC3339)
+}
+
+func toCSVString(v interface{}) string {
+	if v == nil {
+		return "NULL"
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	if s, ok := v.(*string); ok {
+		if s == nil || *s == "" {
+			return "NULL"
+		}
+		return *s
+	}
+	if i, ok := v.(*int); ok {
+		if i == nil {
+			return "NULL"
+		}
+		return fmt.Sprintf("%d", *i)
+	}
+	if i, ok := v.(*int32); ok {
+		if i == nil {
+			return "NULL"
+		}
+		return fmt.Sprintf("%d", *i)
+	}
+	if i, ok := v.(*int64); ok {
+		if i == nil {
+			return "NULL"
+		}
+		return fmt.Sprintf("%d", *i)
+	}
+	if i, ok := v.(*float32); ok {
+		if i == nil {
+			return "NULL"
+		}
+		return fmt.Sprintf("%f", *i)
+	}
+	if i, ok := v.(*float64); ok {
+		if i == nil {
+			return "NULL"
+		}
+		return fmt.Sprintf("%f", *i)
+	}
+	if i, ok := v.(*bool); ok {
+		if i == nil {
+			return "NULL"
+		}
+		return toCSVBool(*i)
+	}
+	if i, ok := v.(bool); ok {
+		return toCSVBool(i)
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+func fromStringPointer(v string) *string {
+	if v == "" || v == "NULL" {
+		return nil
+	}
+	return &v
+}
+
+func fromCSVBool(v string) bool {
+	if v == "1" {
+		return true
+	}
+	return false
+}
+
+func fromCSVBoolPointer(v string) *bool {
+	if v == "" || v == "NULL" {
+		return nil
+	}
+	b := fromCSVBool(v)
+	return &b
+}
+
+func fromCSVInt32(v string) int32 {
+	if v == "" {
+		return int32(0)
+	}
+	i, _ := strconv.ParseInt(v, 10, 32)
+	return int32(i)
+}
+
+func fromCSVInt32Pointer(v string) *int32 {
+	if v == "" || v == "NULL" {
+		return nil
+	}
+	i := fromCSVInt32(v)
+	return &i
+}
+
+func fromCSVInt64(v string) int64 {
+	if v == "" {
+		return int64(0)
+	}
+	i, _ := strconv.ParseInt(v, 10, 64)
+	return int64(i)
+}
+
+func fromCSVInt64Pointer(v string) *int64 {
+	if v == "" || v == "NULL" {
+		return nil
+	}
+	i := fromCSVInt64(v)
+	return &i
+}
+
+func fromCSVUint32(v string) uint32 {
+	if v == "" {
+		return uint32(0)
+	}
+	i, _ := strconv.ParseUint(v, 10, 32)
+	return uint32(i)
+}
+
+func fromCSVUint64(v string) uint64 {
+	if v == "" {
+		return uint64(0)
+	}
+	i, _ := strconv.ParseUint(v, 10, 64)
+	return uint64(i)
+}
+
+func fromCSVUint32Pointer(v string) *uint32 {
+	if v == "" || v == "NULL" {
+		return nil
+	}
+	i := fromCSVUint32(v)
+	return &i
+}
+
+func fromCSVUint64Pointer(v string) *uint64 {
+	if v == "" || v == "NULL" {
+		return nil
+	}
+	i := fromCSVUint64(v)
+	return &i
+}
+
+func fromCSVFloat32(v string) float32 {
+	if v == "" {
+		return float32(0)
+	}
+	f, _ := strconv.ParseFloat(v, 32)
+	return float32(f)
+}
+
+func fromCSVFloat64(v string) float64 {
+	if v == "" {
+		return float64(0)
+	}
+	f, _ := strconv.ParseFloat(v, 64)
+	return f
+}
+
+func fromCSVFloat32Pointer(v string) *float32 {
+	if v == "" || v == "NULL" {
+		return nil
+	}
+	f := fromCSVFloat32(v)
+	return &f
+}
+
+func fromCSVFloat64Pointer(v string) *float64 {
+	if v == "" || v == "NULL" {
+		return nil
+	}
+	f := fromCSVFloat64(v)
+	return &f
+}
+
+func fromCSVDate(v string) *timestamp.Timestamp {
+	if v == "" || v == "NULL" {
+		return nil
+	}
+	tv, err := time.Parse("2006-01-02T15:04:05Z", v)
+	if err != nil {
+		return nil
+	}
+	ts, err := ptypes.TimestampProto(tv)
+	if err != nil {
+		return nil
+	}
+	return ts
+}
+
+// Deserializer is a callback which will take a json RawMessage for processing
+type Deserializer func(line json.RawMessage) error
+
+// Deserialize will return a function which will Deserialize in a flexible way the JSON in reader
+func Deserialize(r io.Reader, dser Deserializer) error {
+	bufreader := bufio.NewReader(r)
+	buf, err := bufreader.Peek(4096)
+	if err != nil && err != io.EOF {
+		return err
+	}
+	eol := bytes.IndexRune(buf, '\n')
+	// see if this is JSON line ending document where each entry is one JSON object per line
+	// or if this is a proper JSON document
+	if eol != -1 && strings.TrimRight(string(buf[eol-1]), "\n ") == "}" {
+		// JSON line buffer where it's all on one line, so we can just parse each line at a time
+		for {
+			line, err := bufreader.ReadSlice('\n')
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			if len(line) > 0 {
+				dec := json.NewDecoder(bytes.NewReader(line))
+				dec.UseNumber()
+				var line json.RawMessage
+				if err := dec.Decode(&line); err != nil {
+					return err
+				}
+				if err := dser(line); err != nil {
+					return err
+				}
+			}
+		}
+	} else {
+		// this is one big JSON document, so we want to figure out
+		// how to stream it based on the first token. we have to
+		// read in the entire buffer though so we can reset the stream
+		// if one big object
+		buf, err := ioutil.ReadAll(bufreader)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		dec := json.NewDecoder(bytes.NewReader(buf))
+		dec.UseNumber()
+		t, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if token, ok := t.(json.Delim); ok {
+			// if this is an array of objects, we stream each array item
+			if token.String() == "[" {
+				for dec.More() {
+					var line json.RawMessage
+					if err := dec.Decode(&line); err != nil {
+						return err
+					}
+					if err := dser(line); err != nil {
+						return err
+					}
+				}
+			} else if token.String() == "{" {
+				// else if this is an object, we just stream the entire thing
+				// but since we've already read some, we need to restart the reader
+				dec = json.NewDecoder(bytes.NewReader(buf))
+				dec.UseNumber()
+				var line json.RawMessage
+				if err := dec.Decode(&line); err != nil {
+					return err
+				}
+				if err := dser(line); err != nil {
+					return err
+				}
+			}
+		} else {
+			return errors.New("first token is not a JSON array or object, so not sure how to stream it")
+		}
+	}
+	return nil
+}
+
+// Model is an interface for describing a DB model object
+type Model interface {
+
+	// TableName is the SQL name of the table
+	TableName() string
+
+	DBCreate(ctx context.Context, db *sql.DB) (sql.Result, error)
+	DBCreateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error)
+
+	DBUpsert(ctx context.Context, db *sql.DB, conditions ...interface{}) (bool, bool, error)
+	DBUpsertTx(ctx context.Context, tx *sql.Tx, conditions ...interface{}) (bool, bool, error)
+
+	DBUpdate(ctx context.Context, db *sql.DB) (sql.Result, error)
+	DBUpdateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error)
+}
+
+// ModelWithPrimaryKey is an interface for describing a DB model object that has a primary key
+type ModelWithPrimaryKey interface {
+
+	PrimaryKeyColumn() string
+	PrimaryKeyColumnType() string
+	PrimaryKey() interface{}
+
+	DBDelete(ctx context.Context, db *sql.DB) (bool, error)
+	DBDeleteTx(ctx context.Context, tx *sql.Tx) (bool, error)
+
+	DBExists(ctx context.Context, db *sql.DB) (bool, error)
+	DBExistsTx(ctx context.Context, tx *sql.Tx) (bool, error)
+
+	DBFind(ctx context.Context, db *sql.DB, _params ...interface{}) (bool, error)
+	DBFindTx(ctx context.Context, tx *sql.Tx, _params ...interface{}) (bool, error)
+
+	DBCount(ctx context.Context, db *sql.DB, _params ...interface{})
+	DBCountTx(ctx context.Context, tx *sql.Tx, _params ...interface{})
+}
+
+// Checksum is an interface for describing checking the contents of the model for equality
+type Checksum interface {
+
+	// CalculateChecksum will return the checksum of the model. this can be used to compare identical objects as a hash identity
+	CalculateChecksum() string
+}
+
+// CSVWriter is an interface for implementing CSV writer output
+type CSVWriter interface {
+
+	// WriteCSV will write the instance to the writer as CSV
+	WriteCSV(w *csv.Writer) error
+}
+
+// JSONWriter is an interface for implementing JSON writer output
+type JSONWriter interface {
+
+	// WriteJSON will write the instance to the writer as JSON
+	WriteJSON(w io.Writer, indent ...bool) error
 }
 `
