@@ -781,7 +781,7 @@ const {{$m}}TableName = "{{$tn}}"
 
 // {{$m}} table
 type {{$m}} struct {
-	{{- range $i, $col := .Properties }}
+	{{- range $i, $col := .SortedProperties }}
 	{{- $gt := GoType $col }}
 	{{- $tags := GoTags $col }}
 	{{ pad $col.Field.Name $w }}  {{ pad $gt 27 }} {{ $tags }}
@@ -797,7 +797,11 @@ func (t *{{$m}}) TableName() string {
 func (t *{{$m}}) WriteCSV(w *csv.Writer) error {
 	return w.Write([]string{
 		{{- range $i, $col := $columns }}
+		{{- if eq $col.Name "Checksum" }}
+		t.CalculateChecksum(),
+		{{- else }}
 		{{CSVStringValue $col "t"}},
+		{{- end }}
 		{{- end}}
 	})
 }
@@ -920,7 +924,11 @@ func New{{$m}}CSVWriterSize(w io.Writer, size int) (chan {{$m}}, chan bool, erro
 		if dedupers != nil && len(dedupers) > 0 {
 			deduper = dedupers[0]
 		}
-		for e := range ch {
+		for c := range ch {
+			// get the address and then make a copy so that
+			// we mutate on the copy and store it not the source
+			cp := &c
+			e := *cp
 			pk := e.{{$pkp.Name}}
 			v := kv[pk]
 			if v == nil {
@@ -1043,6 +1051,8 @@ func New{{$m}}DBWriter(ctx context.Context, db *sql.DB, errors chan<- error, act
 {{- range $i, $col := .Properties }}
 // {{$m}}Column{{$col.Field.Name}} is the {{$col.Field.Name}} SQL column name for the {{$m}} table
 const {{$m}}Column{{$col.Field.Name}} = "{{$col.SQLColumnName}}"
+
+// {{$m}}EscapedColumn{{$col.Field.Name}} is the escaped {{$col.Field.Name}} SQL column name for the {{$m}} table
 const {{$m}}EscapedColumn{{$col.Field.Name}} = "{{$col.SQLColumnNameWithTick}}"
 {{- end }}
 
@@ -2562,27 +2572,25 @@ type Deserializer func(line json.RawMessage) error
 // Deserialize will return a function which will Deserialize in a flexible way the JSON in reader
 func Deserialize(r io.Reader, dser Deserializer) error {
 	bufreader := bufio.NewReader(r)
-	buf, err := bufreader.Peek(4096)
+	buf, err := bufreader.Peek(1)
 	if err != nil && err != io.EOF {
 		return err
 	}
-	eol := bytes.IndexRune(buf, '\n')
-	// see if this is JSON line ending document where each entry is one JSON object per line
-	// or if this is a proper JSON document
-	if eol != -1 && strings.TrimRight(string(buf[eol-1]), "\n ") == "}" {
-		// JSON line buffer where it's all on one line, so we can just parse each line at a time
-		for {
-			line, err := bufreader.ReadSlice('\n')
-			if err == io.EOF {
-				break
+	if err == io.EOF && len(buf) == 0 {
+		return nil
+	}
+	dec := json.NewDecoder(bufreader)
+	dec.UseNumber()
+	token := string(buf[0:1])
+	switch token {
+	case "[", "{":
+		{
+			if token == "[" {
+				// advance the array token
+				dec.Token()
 			}
-			if err != nil {
-				return err
-			}
-			if len(line) > 0 {
-				dec := json.NewDecoder(bytes.NewReader(line))
-				dec.UseNumber()
-				var line json.RawMessage
+			var line json.RawMessage
+			for dec.More() {
 				if err := dec.Decode(&line); err != nil {
 					return err
 				}
@@ -2590,52 +2598,6 @@ func Deserialize(r io.Reader, dser Deserializer) error {
 					return err
 				}
 			}
-		}
-	} else {
-		// this is one big JSON document, so we want to figure out
-		// how to stream it based on the first token. we have to
-		// read in the entire buffer though so we can reset the stream
-		// if one big object
-		buf, err := ioutil.ReadAll(bufreader)
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		dec := json.NewDecoder(bytes.NewReader(buf))
-		dec.UseNumber()
-		t, err := dec.Token()
-		if err != nil {
-			return err
-		}
-		if token, ok := t.(json.Delim); ok {
-			// if this is an array of objects, we stream each array item
-			if token.String() == "[" {
-				for dec.More() {
-					var line json.RawMessage
-					if err := dec.Decode(&line); err != nil {
-						return err
-					}
-					if err := dser(line); err != nil {
-						return err
-					}
-				}
-			} else if token.String() == "{" {
-				// else if this is an object, we just stream the entire thing
-				// but since we've already read some, we need to restart the reader
-				dec = json.NewDecoder(bytes.NewReader(buf))
-				dec.UseNumber()
-				var line json.RawMessage
-				if err := dec.Decode(&line); err != nil {
-					return err
-				}
-				if err := dser(line); err != nil {
-					return err
-				}
-			}
-		} else {
-			return errors.New("first token is not a JSON array or object, so not sure how to stream it")
 		}
 	}
 	return nil

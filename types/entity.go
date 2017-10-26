@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -260,6 +261,11 @@ func NewEntity(packageName string, file *File, message *Message) Entity {
 		p := NewProperty(&e, field)
 		e.Properties = append(e.Properties, *p)
 	}
+	e.SortedProperties = make([]Property, len(e.Properties))
+	copy(e.SortedProperties, e.Properties)
+	sort.Slice(e.SortedProperties, func(i, j int) bool {
+		return strings.ToLower(e.SortedProperties[i].Name) < strings.ToLower(e.SortedProperties[j].Name)
+	})
 	entities = append(entities, &e)
 	return e
 }

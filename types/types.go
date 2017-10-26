@@ -42,12 +42,13 @@ type Property struct {
 
 // Entity is a conversion of a Message into a representation of a entity
 type Entity struct {
-	File       File
-	Message    Message
-	Package    string
-	Name       string
-	Comment    string
-	Properties []Property
+	File             File
+	Message          Message
+	Package          string
+	Name             string
+	Comment          string
+	Properties       []Property
+	SortedProperties []Property
 }
 
 // Generation is what was generated from a Generator Generate
