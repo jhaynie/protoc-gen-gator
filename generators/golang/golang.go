@@ -898,6 +898,9 @@ func NewCSV{{$m}}ReaderDir(dir string, ch chan<- {{$m}}) error {
 type {{$m}}CSVDeduper func(a {{$m}}, b {{$m}}) *{{$m}}
 {{- end }}
 
+// {{$m}}CSVDedupeDisabled is set on whether the CSV writer should de-dupe values by key
+var {{$m}}CSVDedupeDisabled bool
+
 // New{{$m}}CSVWriterSize creates a batch writer that will write each {{$m}} into a CSV file
 {{- if $pkp.PrimaryKey }}
 {{- if .HasChecksum }}
@@ -919,38 +922,50 @@ func New{{$m}}CSVWriterSize(w io.Writer, size int) (chan {{$m}}, chan bool, erro
 			e.WriteCSV(cw)
 		}
 		{{- else }}
-		kv := make(map[{{GoType $pkp}}]*{{$m}})
+		dodedupe := !{{$m}}CSVDedupeDisabled
+		var kv map[{{GoType $pkp}}]*{{$m}}
 		var deduper {{$m}}CSVDeduper
 		if dedupers != nil && len(dedupers) > 0 {
 			deduper = dedupers[0]
+			dodedupe = true
+		}
+		if dodedupe {
+			kv = make(map[{{GoType $pkp}}]*{{$m}})
 		}
 		for c := range ch {
-			// get the address and then make a copy so that
-			// we mutate on the copy and store it not the source
-			cp := &c
-			e := *cp
-			pk := e.{{$pkp.Name}}
-			v := kv[pk]
-			if v == nil {
-				kv[pk] = &e
-				continue
-			}
-			if deduper != nil {
-				r := deduper(e, *v)
-				if r != nil {
-					kv[pk] = r
+			if dodedupe {
+				// get the address and then make a copy so that
+				// we mutate on the copy and store it not the source
+				cp := &c
+				e := *cp
+				pk := e.{{$pkp.Name}}
+				v := kv[pk]
+				if v == nil {
+					kv[pk] = &e
+					continue
 				}
-				continue
+				if deduper != nil {
+					r := deduper(e, *v)
+					if r != nil {
+						kv[pk] = r
+					}
+					continue
+				}
+				{{- if .HasChecksum }}
+				if v.CalculateChecksum() != e.CalculateChecksum() {
+					kv[pk] = &e
+					continue
+				}
+				{{- end }}
+			} else {
+				// if not de-duping, just immediately write to CSV
+				c.WriteCSV(cw)
 			}
-			{{- if .HasChecksum }}
-			if v.CalculateChecksum() != e.CalculateChecksum() {
-				kv[pk] = &e
-				continue
-			}
-			{{- end }}
 		}
-		for _, e := range kv {
-			e.WriteCSV(cw)
+		if dodedupe {
+			for _, e := range kv {
+				e.WriteCSV(cw)
+			}
 		}
 		{{- end }}
 		cw.Flush()
@@ -958,13 +973,16 @@ func New{{$m}}CSVWriterSize(w io.Writer, size int) (chan {{$m}}, chan bool, erro
 	return ch, done, nil
 }
 
+// {{$m}}CSVDefaultSize is the default channel buffer size if not provided
+var {{$m}}CSVDefaultSize = 100
+
 // New{{$m}}CSVWriter creates a batch writer that will write each {{$m}} into a CSV file
 {{- if $pkp.PrimaryKey }}
 func New{{$m}}CSVWriter(w io.Writer, dedupers ...{{$m}}CSVDeduper) (chan {{$m}}, chan bool, error) {
-	return New{{$m}}CSVWriterSize(w, 100, dedupers...)
+	return New{{$m}}CSVWriterSize(w, {{$m}}CSVDefaultSize, dedupers...)
 {{- else }}
 func New{{$m}}CSVWriter(w io.Writer) (chan {{$m}}, chan bool, error) {
-	return New{{$m}}CSVWriterSize(w, 100)
+	return New{{$m}}CSVWriterSize(w, {{$m}}CSVDefaultSize)
 {{- end }}
 }
 
