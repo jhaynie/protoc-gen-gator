@@ -264,7 +264,10 @@ func NewEntity(packageName string, file *File, message *Message) Entity {
 	e.SortedProperties = make([]Property, len(e.Properties))
 	copy(e.SortedProperties, e.Properties)
 	sort.Slice(e.SortedProperties, func(i, j int) bool {
-		return strings.ToLower(e.SortedProperties[i].Name) < strings.ToLower(e.SortedProperties[j].Name)
+		// sort by json tag since an array of interfaces will then sort correctly even when untyped
+		a := snaker.CamelToSnake(e.SortedProperties[i].Name)
+		b := snaker.CamelToSnake(e.SortedProperties[j].Name)
+		return a < b
 	})
 	entities = append(entities, &e)
 	return e
