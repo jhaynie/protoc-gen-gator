@@ -777,6 +777,12 @@ var _ Checksum = (*{{$m}})(nil)
 // {{$m}}TableName is the name of the table in SQL
 const {{$m}}TableName = "{{$tn}}"
 
+var {{$m}}Columns = []string{
+{{- range $i, $col := $columns }}
+	"{{$col.SQLColumnName}}",
+{{- end }}
+}
+
 {{ GoEnumDefinitions . }}
 
 // {{$m}} table
@@ -793,9 +799,9 @@ func (t *{{$m}}) TableName() string {
 	return {{$m}}TableName
 }
 
-// WriteCSV will serialize the {{$m}} instance to the writer as CSV and satisfies the CSVWriter interface
-func (t *{{$m}}) WriteCSV(w *csv.Writer) error {
-	return w.Write([]string{
+// ToCSV will serialize the {{$m}} instance to a CSV compatible array of strings
+func (t *{{$m}}) ToCSV() []string {
+	return []string{
 		{{- range $i, $col := $columns }}
 		{{- if eq $col.Name "Checksum" }}
 		t.CalculateChecksum(),
@@ -803,7 +809,12 @@ func (t *{{$m}}) WriteCSV(w *csv.Writer) error {
 		{{CSVStringValue $col "t"}},
 		{{- end }}
 		{{- end}}
-	})
+	}
+}
+
+// WriteCSV will serialize the {{$m}} instance to the writer as CSV and satisfies the CSVWriter interface
+func (t *{{$m}}) WriteCSV(w *csv.Writer) error {
+	return w.Write(t.ToCSV())
 }
 
 // WriteJSON will serialize the {{$m}} instance to the writer as JSON and satisfies the JSONWriter interface
