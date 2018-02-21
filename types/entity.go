@@ -47,7 +47,7 @@ func plural(name string) string {
 	if strings.HasSuffix(name, "s") {
 		return name + "es"
 	}
-	if strings.HasSuffix(name, "y") {
+	if strings.HasSuffix(name, "y") && !strings.HasSuffix(name, "ey") {
 		return name[0:len(name)-1] + "ies"
 	}
 	return name + "s"
