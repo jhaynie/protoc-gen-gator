@@ -7,6 +7,7 @@ package godoc
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/build"
@@ -248,6 +249,12 @@ func (h *handlerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	relpath := pathpkg.Clean(r.URL.Path[len(h.stripPrefix)+1:])
+
+	if !h.corpusInitialized() {
+		h.p.ServeError(w, r, relpath, errors.New("Scan is not yet complete. Please retry after a few moments"))
+		return
+	}
+
 	abspath := pathpkg.Join(h.fsRoot, relpath)
 	mode := h.p.GetPageInfoMode(r)
 	if relpath == builtinPkgPath {
@@ -312,14 +319,20 @@ func (h *handlerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		info.TypeInfoIndex[ti.Name] = i
 	}
 
-	info.Share = allowShare(r)
+	info.GoogleCN = googleCN(r)
 	h.p.ServePage(w, Page{
 		Title:    title,
 		Tabtitle: tabtitle,
 		Subtitle: subtitle,
 		Body:     applyTemplate(h.p.PackageHTML, "packageHTML", info),
-		Share:    info.Share,
+		GoogleCN: info.GoogleCN,
 	})
+}
+
+func (h *handlerServer) corpusInitialized() bool {
+	h.c.initMu.RLock()
+	defer h.c.initMu.RUnlock()
+	return h.c.initDone
 }
 
 type PageInfoMode uint
@@ -579,10 +592,11 @@ func (p *Presentation) serveTextFile(w http.ResponseWriter, r *http.Request, abs
 	fmt.Fprintf(&buf, `<p><a href="/%s?m=text">View as plain text</a></p>`, htmlpkg.EscapeString(relpath))
 
 	p.ServePage(w, Page{
-		Title:    title + " " + relpath,
+		Title:    title,
+		SrcPath:  relpath,
 		Tabtitle: relpath,
 		Body:     buf.Bytes(),
-		Share:    allowShare(r),
+		GoogleCN: googleCN(r),
 	})
 }
 
@@ -630,7 +644,7 @@ func formatGoSource(buf *bytes.Buffer, text []byte, links []analysis.Link, patte
 		// The first tab for the code snippet needs to start in column 9, so
 		// it indents a full 8 spaces, hence the two nbsp's. Otherwise the tab
 		// character only indents about two spaces.
-		fmt.Fprintf(saved, `<span id="L%d" class="ln" data-content="%6d">&nbsp;&nbsp;</span>`, n, n)
+		fmt.Fprintf(saved, `<span id="L%d" class="ln">%6d&nbsp;&nbsp;</span>`, n, n)
 		n++
 		saved.Write(line)
 		saved.WriteByte('\n')
@@ -649,10 +663,11 @@ func (p *Presentation) serveDirectory(w http.ResponseWriter, r *http.Request, ab
 	}
 
 	p.ServePage(w, Page{
-		Title:    "Directory " + relpath,
+		Title:    "Directory",
+		SrcPath:  relpath,
 		Tabtitle: relpath,
 		Body:     applyTemplate(p.DirlistHTML, "dirlistHTML", list),
-		Share:    allowShare(r),
+		GoogleCN: googleCN(r),
 	})
 }
 
@@ -681,7 +696,7 @@ func (p *Presentation) ServeHTMLDoc(w http.ResponseWriter, r *http.Request, absp
 	page := Page{
 		Title:    meta.Title,
 		Subtitle: meta.Subtitle,
-		Share:    allowShare(r),
+		GoogleCN: googleCN(r),
 	}
 
 	// evaluate as template if indicated
