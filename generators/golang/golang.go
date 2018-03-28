@@ -848,7 +848,7 @@ func (t *{{$m}}) WriteJSON(w io.Writer, indent ...bool) error {
 // New{{$m}}Reader creates a JSON reader which can read in {{$m}} objects serialized as JSON either as an array, single object or json new lines
 // and writes each {{$m}} to the channel provided
 func New{{$m}}Reader(r io.Reader, ch chan<- {{$m}}) error {
-	return Deserialize(r, func(buf json.RawMessage) error {
+	return orm.Deserialize(r, func(buf json.RawMessage) error {
 		dec := json.NewDecoder(bytes.NewBuffer(buf))
 		e := {{$m}}{}
 		if err := dec.Decode(&e); err != nil {
@@ -2596,40 +2596,11 @@ func fromCSVDate(v string) *timestamp.Timestamp {
 }
 
 // Deserializer is a callback which will take a json RawMessage for processing
-type Deserializer func(line json.RawMessage) error
+type Deserializer = orm.Deserializer
 
 // Deserialize will return a function which will Deserialize in a flexible way the JSON in reader
 func Deserialize(r io.Reader, dser Deserializer) error {
-	bufreader := bufio.NewReader(r)
-	buf, err := bufreader.Peek(1)
-	if err != nil && err != io.EOF {
-		return err
-	}
-	if err == io.EOF && len(buf) == 0 {
-		return nil
-	}
-	dec := json.NewDecoder(bufreader)
-	dec.UseNumber()
-	token := string(buf[0:1])
-	switch token {
-	case "[", "{":
-		{
-			if token == "[" {
-				// advance the array token
-				dec.Token()
-			}
-			var line json.RawMessage
-			for dec.More() {
-				if err := dec.Decode(&line); err != nil {
-					return err
-				}
-				if err := dser(line); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
+	return orm.Deserialize(r, dser)
 }
 
 // Model is an interface for describing a DB model object
