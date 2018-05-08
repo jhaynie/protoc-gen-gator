@@ -563,6 +563,10 @@ func generateIndex(message Message, e *proto.ExtensionDesc, key string) *SQLInde
 					if i.Name == "" {
 						// create the name of the index if not provided
 						i.Name = strings.ToLower(snaker.CamelToSnake(message.Name) + "_" + strings.Replace(strings.Replace(i.Fields, ",", "_", -1), " ", "", -1) + "_index")
+						if len(i.Name) > 64 {
+							// MySQL has a max index name length of 64 so we need to trim
+							i.Name = i.Name[0:64]
+						}
 					}
 					if i.Type == "" {
 						i.Type = "INDEX"
