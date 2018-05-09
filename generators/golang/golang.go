@@ -1019,7 +1019,7 @@ func New{{$m}}CSVWriterFile(fn string) (chan {{$m}}, chan bool, error) {
 	}
 	var fc io.WriteCloser = f
 	if filepath.Ext(fn) == ".gz" {
-		w := gzip.NewWriter(f)
+		w, _ := gzip.NewWriterLevel(f, gzip.BestCompression)
 		fc = w
 	}
 	{{- if $pkp.PrimaryKey }}
