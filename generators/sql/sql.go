@@ -53,7 +53,7 @@ CREATE TABLE {{tick .SQLTableName}} (
 	{{- addctx "c" 1 -}}
 	{{- end }}
 	{{ range $i, $col := $indexes -}}
-	{{ .Type }} {{ .Name }} ({{.Fields}}){{- condctx "c" $l "," }}
+	{{ .Type }} {{ .Name }} ({{tickarray .Fields}}){{- condctx "c" $l "," }}
 	{{ addctx "c" 1 }}
 	{{- end -}}
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

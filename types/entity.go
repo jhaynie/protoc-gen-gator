@@ -95,6 +95,16 @@ func Backtick(s string) string {
 	return "`" + s + "`"
 }
 
+// BacktickArray returns a string with backticks surrounding it from an array of strings
+func BacktickArray(s string) string {
+	tok := strings.Split(s, ",")
+	newarr := make([]string, 0)
+	for _, s := range tok {
+		newarr = append(newarr, Backtick(strings.TrimSpace(s)))
+	}
+	return strings.Join(newarr, ",")
+}
+
 // Add is a simple addition function for templates
 func Add(a, b int) int {
 	return a + b
@@ -105,10 +115,11 @@ func GenerateCode(tmplcode string, state map[string]interface{}, funcs map[strin
 	tpl := template.New("tmpl")
 	ctx := make(map[string]interface{})
 	fm := template.FuncMap{
-		"add":  Add,
-		"pad":  Pad,
-		"cond": Cond,
-		"tick": Backtick,
+		"add":       Add,
+		"pad":       Pad,
+		"cond":      Cond,
+		"tick":      Backtick,
+		"tickarray": BacktickArray,
 		"addctx": func(key string, b int) string {
 			v := ctx[key]
 			if value, ok := v.(int); ok {
