@@ -1,6 +1,8 @@
 package types
 
 import (
+	"strings"
+
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
 )
 
@@ -75,4 +77,14 @@ func Pad(s string, ml int) string {
 		s += " "
 	}
 	return s
+}
+
+// IsStored return true if the field property is STORED type
+func (p Property) IsStored() bool {
+	return strings.Contains(strings.ToUpper(p.SQLType()), "STORED")
+}
+
+// IsStoredOrPrimaryKey returns true if a primary key or stored field
+func (p Property) IsStoredOrPrimaryKey() bool {
+	return p.PrimaryKey || p.IsStored()
 }

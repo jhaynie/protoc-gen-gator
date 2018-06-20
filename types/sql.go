@@ -581,14 +581,31 @@ func generateIndex(message Message, e *proto.ExtensionDesc, key string) *SQLInde
 
 // SQLColumnPlaceholders returns a string of placeholder values for the SQL query
 func (e Entity) SQLColumnPlaceholders() string {
-	return "?" + strings.Repeat(",?", len(e.Properties)-1)
+	var count int
+	for _, p := range e.Properties {
+		if !p.IsStored() {
+			count++
+		}
+	}
+	return "?" + strings.Repeat(",?", count-1)
+}
+
+// SQLProperties returns a SQL safe properties list
+func (e Entity) SQLProperties() []Property {
+	p := make([]Property, 0)
+	for _, c := range e.Properties {
+		if !c.IsStored() {
+			p = append(p, c)
+		}
+	}
+	return p
 }
 
 // SQLColumnSetterList returns a string of placeholders for setter
 func (e Entity) SQLColumnSetterList() string {
 	l := make([]string, 0)
 	for _, c := range e.Properties {
-		if !c.PrimaryKey {
+		if !c.PrimaryKey && !c.IsStored() {
 			l = append(l, Backtick(snaker.CamelToSnake(c.Name))+"=?")
 		}
 	}
@@ -599,7 +616,9 @@ func (e Entity) SQLColumnSetterList() string {
 func (e Entity) SQLColumnList() string {
 	s := make([]string, 0)
 	for _, p := range e.Properties {
-		s = append(s, Backtick(e.SQLTableName())+"."+Backtick(snaker.CamelToSnake(p.Name)))
+		if !p.IsStored() {
+			s = append(s, Backtick(e.SQLTableName())+"."+Backtick(snaker.CamelToSnake(p.Name)))
+		}
 	}
 	return strings.Join(s, ",")
 }
@@ -608,7 +627,7 @@ func (e Entity) SQLColumnList() string {
 func (e Entity) SQLColumnUpsertList() string {
 	l := make([]string, 0)
 	for _, c := range e.Properties {
-		if !c.PrimaryKey {
+		if !c.PrimaryKey && !c.IsStored() {
 			n := Backtick(snaker.CamelToSnake(c.Name))
 			l = append(l, n+"=VALUES("+n+")")
 		}

@@ -747,7 +747,7 @@ const goTemplate = `
 {{- $pkc := .PrimaryKey }}
 {{- $tnp := .TableNamePlural }}
 {{- $tns := .TableNameSingular }}
-{{- $columns := .Properties }}
+{{- $columns := .SQLProperties }}
 {{- $hpk := .HasPrimaryKey }}
 {{- $pkp := .PrimaryKeyProperty }}
 {{- $tnt := tick $tn }}
@@ -788,9 +788,11 @@ var {{$m}}Columns = []string{
 // {{$m}} table
 type {{$m}} struct {
 	{{- range $i, $col := .SortedProperties }}
+	{{- if not $col.IsStored }}
 	{{- $gt := GoType $col }}
 	{{- $tags := GoTags $col }}
 	{{ pad $col.Field.Name $w }}  {{ pad $gt 27 }} {{ $tags }}
+	{{- end }}
 	{{- end }}
 }
 
@@ -1078,14 +1080,17 @@ func New{{$m}}DBWriter(ctx context.Context, db *sql.DB, errors chan<- error, act
 }
 
 {{- range $i, $col := .Properties }}
+{{- if not $col.IsStored }}
 // {{$m}}Column{{$col.Field.Name}} is the {{$col.Field.Name}} SQL column name for the {{$m}} table
 const {{$m}}Column{{$col.Field.Name}} = "{{$col.SQLColumnName}}"
 
 // {{$m}}EscapedColumn{{$col.Field.Name}} is the escaped {{$col.Field.Name}} SQL column name for the {{$m}} table
 const {{$m}}EscapedColumn{{$col.Field.Name}} = "{{$col.SQLColumnNameWithTick}}"
 {{- end }}
+{{- end }}
 
 {{- range $i, $col := .Properties }}
+{{- if not $col.IsStored }}
 
 // Get{{ $col.Field.Name }} will return the {{ $m }} {{ $col.Field.Name }} value
 func (t *{{$m}}) Get{{ $col.Field.Name }}() {{ GoTypeWithoutPointer $col }} {
@@ -1108,8 +1113,9 @@ func (t *{{$m}}) Set{{ $col.Field.Name }}String(v string) {
 	{{ GoSetterValue $col "t" "v" true }}
 }
 {{- end }}
+{{- end }}
 
-{{- if not $col.PrimaryKey }}
+{{- if not $col.IsStoredOrPrimaryKey }}
 {{- if $col.Index }}
 
 // Find{{$tnp}}By{{ $col.Field.Name }} will find all {{$m}}s by the {{ $col.Field.Name }} value
@@ -1184,6 +1190,7 @@ func Find{{$tnp}}By{{ $col.Field.Name }}Tx(ctx context.Context, tx *sql.Tx, valu
 {{- end }}
 {{- else }}
 
+{{- if not $col.IsStored }}
 {{- if $hpk }}
 
 // Find{{$tns}}By{{ $col.Field.Name }} will find a {{$m}} by {{ $col.Field.Name }}
@@ -1237,6 +1244,7 @@ func Find{{$tns}}By{{ $col.Field.Name }}Tx(ctx context.Context, tx *sql.Tx, valu
 	{{- end }}
 	return t, nil
 }
+{{- end }}
 {{- end }}
 
 {{- end }}
@@ -1908,7 +1916,7 @@ const goTestTemplate = `
 {{- $pkc := .PrimaryKey }}
 {{- $tnp := .TableNamePlural }}
 {{- $tns := .TableNameSingular }}
-{{- $columns := .Properties }}
+{{- $columns := .SQLProperties }}
 {{- $hpk := .HasPrimaryKey }}
 {{- $pkp := .PrimaryKeyProperty }}
 {{- $tnt := tick $tn }}
