@@ -29,6 +29,7 @@ func (g *goosegenerator) Generate(scheme string, file *types.File, entities []ty
 		}
 	}
 	var out bytes.Buffer
+	out.WriteString("-- GENERATED SQL. DO NOT EDIT\n\n")
 	out.WriteString(`-- +goose Up
 -- SQL in section 'Up' is executed when this migration is applied
 

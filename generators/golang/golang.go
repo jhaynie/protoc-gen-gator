@@ -751,6 +751,8 @@ const goTemplate = `
 {{- $hpk := .HasPrimaryKey }}
 {{- $pkp := .PrimaryKeyProperty }}
 {{- $tnt := tick $tn }}
+// GENERATED CODE. DO NOT EDIT
+
 package {{.Package}}
 
 import (
@@ -1920,6 +1922,8 @@ const goTestTemplate = `
 {{- $hpk := .HasPrimaryKey }}
 {{- $pkp := .PrimaryKeyProperty }}
 {{- $tnt := tick $tn }}
+// GENERATED CODE. DO NOT EDIT
+
 package {{.Package}}
 
 import (
@@ -2181,7 +2185,9 @@ func TestCreate{{$m}}DeleteTx(t *testing.T) {
 {{- end }}
 `
 
-const goTestMainTemplate = `package {{ .PkgName }}
+const goTestMainTemplate = `// GENERATED CODE. DO NOT EDIT
+
+package {{ .PkgName }}
 
 import (
 	"database/sql"
@@ -2272,7 +2278,8 @@ func TestMain(m *testing.M) {
 }
 `
 
-const goUtilTemplate = `package {{ .PkgName }}
+const goUtilTemplate = `// GENERATED CODE. DO NOT EDIT
+package {{ .PkgName }}
 // NullTime taken from
 // Go MySQL Driver - A MySQL-Driver for Go's database/sql package
 //
