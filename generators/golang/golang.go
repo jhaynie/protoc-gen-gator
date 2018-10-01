@@ -2626,7 +2626,7 @@ type DB interface {
 
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 
-	Begin() Tx
+	Begin() (*sql.Tx, error)
 
 	Close() error
 }
@@ -2634,6 +2634,8 @@ type DB interface {
 // Tx is an interface to a DB transaction
 type Tx interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 
