@@ -3,9 +3,11 @@
 
 package proto
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -28,16 +30,17 @@ func (m *ID) Reset()         { *m = ID{} }
 func (m *ID) String() string { return proto.CompactTextString(m) }
 func (*ID) ProtoMessage()    {}
 func (*ID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_types_e121d07081ab1e22, []int{0}
+	return fileDescriptor_d938547f84707355, []int{0}
 }
+
 func (m *ID) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ID.Unmarshal(m, b)
 }
 func (m *ID) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ID.Marshal(b, m, deterministic)
 }
-func (dst *ID) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ID.Merge(dst, src)
+func (m *ID) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ID.Merge(m, src)
 }
 func (m *ID) XXX_Size() int {
 	return xxx_messageInfo_ID.Size(m)
@@ -58,16 +61,17 @@ func (m *DateTime) Reset()         { *m = DateTime{} }
 func (m *DateTime) String() string { return proto.CompactTextString(m) }
 func (*DateTime) ProtoMessage()    {}
 func (*DateTime) Descriptor() ([]byte, []int) {
-	return fileDescriptor_types_e121d07081ab1e22, []int{1}
+	return fileDescriptor_d938547f84707355, []int{1}
 }
+
 func (m *DateTime) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_DateTime.Unmarshal(m, b)
 }
 func (m *DateTime) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_DateTime.Marshal(b, m, deterministic)
 }
-func (dst *DateTime) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DateTime.Merge(dst, src)
+func (m *DateTime) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DateTime.Merge(m, src)
 }
 func (m *DateTime) XXX_Size() int {
 	return xxx_messageInfo_DateTime.Size(m)
@@ -88,16 +92,17 @@ func (m *Checksum) Reset()         { *m = Checksum{} }
 func (m *Checksum) String() string { return proto.CompactTextString(m) }
 func (*Checksum) ProtoMessage()    {}
 func (*Checksum) Descriptor() ([]byte, []int) {
-	return fileDescriptor_types_e121d07081ab1e22, []int{2}
+	return fileDescriptor_d938547f84707355, []int{2}
 }
+
 func (m *Checksum) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Checksum.Unmarshal(m, b)
 }
 func (m *Checksum) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Checksum.Marshal(b, m, deterministic)
 }
-func (dst *Checksum) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Checksum.Merge(dst, src)
+func (m *Checksum) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Checksum.Merge(m, src)
 }
 func (m *Checksum) XXX_Size() int {
 	return xxx_messageInfo_Checksum.Size(m)
@@ -118,16 +123,17 @@ func (m *UID) Reset()         { *m = UID{} }
 func (m *UID) String() string { return proto.CompactTextString(m) }
 func (*UID) ProtoMessage()    {}
 func (*UID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_types_e121d07081ab1e22, []int{3}
+	return fileDescriptor_d938547f84707355, []int{3}
 }
+
 func (m *UID) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UID.Unmarshal(m, b)
 }
 func (m *UID) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_UID.Marshal(b, m, deterministic)
 }
-func (dst *UID) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UID.Merge(dst, src)
+func (m *UID) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UID.Merge(m, src)
 }
 func (m *UID) XXX_Size() int {
 	return xxx_messageInfo_UID.Size(m)
@@ -145,9 +151,9 @@ func init() {
 	proto.RegisterType((*UID)(nil), "proto.UID")
 }
 
-func init() { proto.RegisterFile("types.proto", fileDescriptor_types_e121d07081ab1e22) }
+func init() { proto.RegisterFile("types.proto", fileDescriptor_d938547f84707355) }
 
-var fileDescriptor_types_e121d07081ab1e22 = []byte{
+var fileDescriptor_d938547f84707355 = []byte{
 	// 80 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x2e, 0xa9, 0x2c, 0x48,
 	0x2d, 0xd6, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x05, 0x53, 0x4a, 0x2c, 0x5c, 0x4c, 0x9e,

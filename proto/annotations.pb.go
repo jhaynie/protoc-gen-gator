@@ -3,10 +3,12 @@
 
 package proto
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
-import descriptor "github.com/golang/protobuf/protoc-gen-go/descriptor"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	descriptor "github.com/golang/protobuf/protoc-gen-go/descriptor"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -32,16 +34,17 @@ func (m *SQLIndex) Reset()         { *m = SQLIndex{} }
 func (m *SQLIndex) String() string { return proto.CompactTextString(m) }
 func (*SQLIndex) ProtoMessage()    {}
 func (*SQLIndex) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_75c6b13947912f81, []int{0}
+	return fileDescriptor_ba12aec1634c43e6, []int{0}
 }
+
 func (m *SQLIndex) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SQLIndex.Unmarshal(m, b)
 }
 func (m *SQLIndex) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_SQLIndex.Marshal(b, m, deterministic)
 }
-func (dst *SQLIndex) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SQLIndex.Merge(dst, src)
+func (m *SQLIndex) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SQLIndex.Merge(m, src)
 }
 func (m *SQLIndex) XXX_Size() int {
 	return xxx_messageInfo_SQLIndex.Size(m)
@@ -87,16 +90,17 @@ func (m *SQLAssociation) Reset()         { *m = SQLAssociation{} }
 func (m *SQLAssociation) String() string { return proto.CompactTextString(m) }
 func (*SQLAssociation) ProtoMessage()    {}
 func (*SQLAssociation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_75c6b13947912f81, []int{1}
+	return fileDescriptor_ba12aec1634c43e6, []int{1}
 }
+
 func (m *SQLAssociation) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SQLAssociation.Unmarshal(m, b)
 }
 func (m *SQLAssociation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_SQLAssociation.Marshal(b, m, deterministic)
 }
-func (dst *SQLAssociation) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SQLAssociation.Merge(dst, src)
+func (m *SQLAssociation) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SQLAssociation.Merge(m, src)
 }
 func (m *SQLAssociation) XXX_Size() int {
 	return xxx_messageInfo_SQLAssociation.Size(m)
@@ -153,16 +157,17 @@ func (m *SQLFieldOptions) Reset()         { *m = SQLFieldOptions{} }
 func (m *SQLFieldOptions) String() string { return proto.CompactTextString(m) }
 func (*SQLFieldOptions) ProtoMessage()    {}
 func (*SQLFieldOptions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_75c6b13947912f81, []int{2}
+	return fileDescriptor_ba12aec1634c43e6, []int{2}
 }
+
 func (m *SQLFieldOptions) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SQLFieldOptions.Unmarshal(m, b)
 }
 func (m *SQLFieldOptions) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_SQLFieldOptions.Marshal(b, m, deterministic)
 }
-func (dst *SQLFieldOptions) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SQLFieldOptions.Merge(dst, src)
+func (m *SQLFieldOptions) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SQLFieldOptions.Merge(m, src)
 }
 func (m *SQLFieldOptions) XXX_Size() int {
 	return xxx_messageInfo_SQLFieldOptions.Size(m)
@@ -243,16 +248,17 @@ func (m *GraphQLType) Reset()         { *m = GraphQLType{} }
 func (m *GraphQLType) String() string { return proto.CompactTextString(m) }
 func (*GraphQLType) ProtoMessage()    {}
 func (*GraphQLType) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_75c6b13947912f81, []int{3}
+	return fileDescriptor_ba12aec1634c43e6, []int{3}
 }
+
 func (m *GraphQLType) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GraphQLType.Unmarshal(m, b)
 }
 func (m *GraphQLType) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_GraphQLType.Marshal(b, m, deterministic)
 }
-func (dst *GraphQLType) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GraphQLType.Merge(dst, src)
+func (m *GraphQLType) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GraphQLType.Merge(m, src)
 }
 func (m *GraphQLType) XXX_Size() int {
 	return xxx_messageInfo_GraphQLType.Size(m)
@@ -305,16 +311,17 @@ func (m *GraphQLUnion) Reset()         { *m = GraphQLUnion{} }
 func (m *GraphQLUnion) String() string { return proto.CompactTextString(m) }
 func (*GraphQLUnion) ProtoMessage()    {}
 func (*GraphQLUnion) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_75c6b13947912f81, []int{4}
+	return fileDescriptor_ba12aec1634c43e6, []int{4}
 }
+
 func (m *GraphQLUnion) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GraphQLUnion.Unmarshal(m, b)
 }
 func (m *GraphQLUnion) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_GraphQLUnion.Marshal(b, m, deterministic)
 }
-func (dst *GraphQLUnion) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GraphQLUnion.Merge(dst, src)
+func (m *GraphQLUnion) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GraphQLUnion.Merge(m, src)
 }
 func (m *GraphQLUnion) XXX_Size() int {
 	return xxx_messageInfo_GraphQLUnion.Size(m)
@@ -434,16 +441,17 @@ func (m *SQLMessageOptions) Reset()         { *m = SQLMessageOptions{} }
 func (m *SQLMessageOptions) String() string { return proto.CompactTextString(m) }
 func (*SQLMessageOptions) ProtoMessage()    {}
 func (*SQLMessageOptions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_75c6b13947912f81, []int{5}
+	return fileDescriptor_ba12aec1634c43e6, []int{5}
 }
+
 func (m *SQLMessageOptions) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SQLMessageOptions.Unmarshal(m, b)
 }
 func (m *SQLMessageOptions) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_SQLMessageOptions.Marshal(b, m, deterministic)
 }
-func (dst *SQLMessageOptions) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SQLMessageOptions.Merge(dst, src)
+func (m *SQLMessageOptions) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SQLMessageOptions.Merge(m, src)
 }
 func (m *SQLMessageOptions) XXX_Size() int {
 	return xxx_messageInfo_SQLMessageOptions.Size(m)
@@ -962,16 +970,17 @@ func (m *SQLFileOptions) Reset()         { *m = SQLFileOptions{} }
 func (m *SQLFileOptions) String() string { return proto.CompactTextString(m) }
 func (*SQLFileOptions) ProtoMessage()    {}
 func (*SQLFileOptions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_75c6b13947912f81, []int{6}
+	return fileDescriptor_ba12aec1634c43e6, []int{6}
 }
+
 func (m *SQLFileOptions) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SQLFileOptions.Unmarshal(m, b)
 }
 func (m *SQLFileOptions) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_SQLFileOptions.Marshal(b, m, deterministic)
 }
-func (dst *SQLFileOptions) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SQLFileOptions.Merge(dst, src)
+func (m *SQLFileOptions) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SQLFileOptions.Merge(m, src)
 }
 func (m *SQLFileOptions) XXX_Size() int {
 	return xxx_messageInfo_SQLFileOptions.Size(m)
@@ -1000,16 +1009,17 @@ func (m *SQLEnumValueOptions) Reset()         { *m = SQLEnumValueOptions{} }
 func (m *SQLEnumValueOptions) String() string { return proto.CompactTextString(m) }
 func (*SQLEnumValueOptions) ProtoMessage()    {}
 func (*SQLEnumValueOptions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_annotations_75c6b13947912f81, []int{7}
+	return fileDescriptor_ba12aec1634c43e6, []int{7}
 }
+
 func (m *SQLEnumValueOptions) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SQLEnumValueOptions.Unmarshal(m, b)
 }
 func (m *SQLEnumValueOptions) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_SQLEnumValueOptions.Marshal(b, m, deterministic)
 }
-func (dst *SQLEnumValueOptions) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SQLEnumValueOptions.Merge(dst, src)
+func (m *SQLEnumValueOptions) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SQLEnumValueOptions.Merge(m, src)
 }
 func (m *SQLEnumValueOptions) XXX_Size() int {
 	return xxx_messageInfo_SQLEnumValueOptions.Size(m)
@@ -1078,9 +1088,9 @@ func init() {
 	proto.RegisterExtension(E_Enumval)
 }
 
-func init() { proto.RegisterFile("annotations.proto", fileDescriptor_annotations_75c6b13947912f81) }
+func init() { proto.RegisterFile("annotations.proto", fileDescriptor_ba12aec1634c43e6) }
 
-var fileDescriptor_annotations_75c6b13947912f81 = []byte{
+var fileDescriptor_ba12aec1634c43e6 = []byte{
 	// 1171 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0xd8, 0xf9, 0x72, 0xdb, 0x44,
 	0x1c, 0x07, 0xf0, 0x89, 0x49, 0x7c, 0xac, 0xd3, 0x84, 0x6c, 0xd2, 0xf0, 0x23, 0x4d, 0x0f, 0x3c,
