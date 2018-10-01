@@ -275,6 +275,17 @@ type SQLMessageOptions struct {
 	Index7      *SQLIndex       `protobuf:"bytes,7,opt,name=index7" json:"index7,omitempty"`
 	Index8      *SQLIndex       `protobuf:"bytes,8,opt,name=index8" json:"index8,omitempty"`
 	Index9      *SQLIndex       `protobuf:"bytes,9,opt,name=index9" json:"index9,omitempty"`
+	Index10     *SQLIndex       `protobuf:"bytes,10,opt,name=index10" json:"index10,omitempty"`
+	Index11     *SQLIndex       `protobuf:"bytes,11,opt,name=index11" json:"index11,omitempty"`
+	Index12     *SQLIndex       `protobuf:"bytes,12,opt,name=index12" json:"index12,omitempty"`
+	Index13     *SQLIndex       `protobuf:"bytes,13,opt,name=index13" json:"index13,omitempty"`
+	Index14     *SQLIndex       `protobuf:"bytes,14,opt,name=index14" json:"index14,omitempty"`
+	Index15     *SQLIndex       `protobuf:"bytes,15,opt,name=index15" json:"index15,omitempty"`
+	Index16     *SQLIndex       `protobuf:"bytes,16,opt,name=index16" json:"index16,omitempty"`
+	Index17     *SQLIndex       `protobuf:"bytes,17,opt,name=index17" json:"index17,omitempty"`
+	Index18     *SQLIndex       `protobuf:"bytes,18,opt,name=index18" json:"index18,omitempty"`
+	Index19     *SQLIndex       `protobuf:"bytes,19,opt,name=index19" json:"index19,omitempty"`
+	Index20     *SQLIndex       `protobuf:"bytes,20,opt,name=index20" json:"index20,omitempty"`
 	Name        string          `protobuf:"bytes,10,opt,name=name" json:"name,omitempty"`
 	BelongsTo   *SQLAssociation `protobuf:"bytes,20,opt,name=belongs_to,json=belongsTo" json:"belongs_to,omitempty"`
 	BelongsTo2  *SQLAssociation `protobuf:"bytes,21,opt,name=belongs_to2,json=belongsTo2" json:"belongs_to2,omitempty"`
@@ -396,6 +407,72 @@ func (m *SQLMessageOptions) GetIndex9() *SQLIndex {
 	return nil
 }
 
+func (m *SQLMessageOptions) GetIndex10() *SQLIndex {
+	if m != nil {
+		return m.Index10
+	}
+	return nil
+}
+func (m *SQLMessageOptions) GetIndex11() *SQLIndex {
+	if m != nil {
+		return m.Index11
+	}
+	return nil
+}
+func (m *SQLMessageOptions) GetIndex12() *SQLIndex {
+	if m != nil {
+		return m.Index12
+	}
+	return nil
+}
+func (m *SQLMessageOptions) GetIndex13() *SQLIndex {
+	if m != nil {
+		return m.Index13
+	}
+	return nil
+}
+func (m *SQLMessageOptions) GetIndex14() *SQLIndex {
+	if m != nil {
+		return m.Index14
+	}
+	return nil
+}
+func (m *SQLMessageOptions) GetIndex15() *SQLIndex {
+	if m != nil {
+		return m.Index15
+	}
+	return nil
+}
+func (m *SQLMessageOptions) GetIndex16() *SQLIndex {
+	if m != nil {
+		return m.Index16
+	}
+	return nil
+}
+func (m *SQLMessageOptions) GetIndex17() *SQLIndex {
+	if m != nil {
+		return m.Index17
+	}
+	return nil
+}
+func (m *SQLMessageOptions) GetIndex18() *SQLIndex {
+	if m != nil {
+		return m.Index18
+	}
+	return nil
+}
+func (m *SQLMessageOptions) GetIndex19() *SQLIndex {
+	if m != nil {
+		return m.Index19
+	}
+	return nil
+}
+func (m *SQLMessageOptions) GetIndex20() *SQLIndex {
+	if m != nil {
+		return m.Index20
+	}
+	return nil
+}
 func (m *SQLMessageOptions) GetName() string {
 	if m != nil {
 		return m.Name

@@ -3,6 +3,7 @@ package types
 import (
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"fmt"
@@ -671,37 +672,11 @@ func (e Entity) SQLIndexes() []SQLIndex {
 		if i != nil {
 			indicies = append(indicies, *i)
 		}
-		i = generateIndex(e.Message, eproto.E_Table, "Index2")
-		if i != nil {
-			indicies = append(indicies, *i)
-		}
-		i = generateIndex(e.Message, eproto.E_Table, "Index3")
-		if i != nil {
-			indicies = append(indicies, *i)
-		}
-		i = generateIndex(e.Message, eproto.E_Table, "Index4")
-		if i != nil {
-			indicies = append(indicies, *i)
-		}
-		i = generateIndex(e.Message, eproto.E_Table, "Index5")
-		if i != nil {
-			indicies = append(indicies, *i)
-		}
-		i = generateIndex(e.Message, eproto.E_Table, "Index6")
-		if i != nil {
-			indicies = append(indicies, *i)
-		}
-		i = generateIndex(e.Message, eproto.E_Table, "Index7")
-		if i != nil {
-			indicies = append(indicies, *i)
-		}
-		i = generateIndex(e.Message, eproto.E_Table, "Index8")
-		if i != nil {
-			indicies = append(indicies, *i)
-		}
-		i = generateIndex(e.Message, eproto.E_Table, "Index9")
-		if i != nil {
-			indicies = append(indicies, *i)
+		for i := 2; i <= 20; i++ {
+			i = generateIndex(e.Message, eproto.E_Table, "Index"+strconv.Itoa(i))
+			if i != nil {
+				indicies = append(indicies, *i)
+			}
 		}
 	}
 	for _, index := range indicies {

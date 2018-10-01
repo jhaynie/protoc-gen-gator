@@ -52,6 +52,17 @@ message SQLMessageOptions {
   SQLIndex index7 = 7;
   SQLIndex index8 = 8;
   SQLIndex index9 = 9;
+  SQLIndex index10 = 10;
+  SQLIndex index11 = 11;
+  SQLIndex index12 = 12;
+  SQLIndex index13 = 13;
+  SQLIndex index14 = 14;
+  SQLIndex index15 = 15;
+  SQLIndex index16 = 16;
+  SQLIndex index17 = 17;
+  SQLIndex index18 = 18;
+  SQLIndex index19 = 19;
+  SQLIndex index20 = 20;
   string name = 10;
   SQLAssociation belongs_to = 20;
   SQLAssociation belongs_to2 = 21;
