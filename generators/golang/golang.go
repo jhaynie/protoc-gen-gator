@@ -1049,10 +1049,10 @@ func New{{$m}}CSVWriterFile(fn string) (chan {{$m}}, chan bool, error) {
 	return ch, sdone, nil
 }
 
-type {{$m}}DBAction func(ctx context.Context, db *sql.DB, record {{$m}}) error
+type {{$m}}DBAction func(ctx context.Context, db DB, record {{$m}}) error
 
 // New{{$m}}DBWriterSize creates a DB writer that will write each issue into the DB
-func New{{$m}}DBWriterSize(ctx context.Context, db *sql.DB, errors chan<- error, size int, actions ...{{$m}}DBAction) (chan {{$m}}, chan bool, error) {
+func New{{$m}}DBWriterSize(ctx context.Context, db DB, errors chan<- error, size int, actions ...{{$m}}DBAction) (chan {{$m}}, chan bool, error) {
 	ch := make(chan {{$m}}, size)
 	done := make(chan bool)
 	var action {{$m}}DBAction
@@ -1077,7 +1077,7 @@ func New{{$m}}DBWriterSize(ctx context.Context, db *sql.DB, errors chan<- error,
 }
 
 // New{{$m}}DBWriter creates a DB writer that will write each issue into the DB
-func New{{$m}}DBWriter(ctx context.Context, db *sql.DB, errors chan<- error, actions ...{{$m}}DBAction) (chan {{$m}}, chan bool, error) {
+func New{{$m}}DBWriter(ctx context.Context, db DB, errors chan<- error, actions ...{{$m}}DBAction) (chan {{$m}}, chan bool, error) {
 	return New{{$m}}DBWriterSize(ctx, db, errors, 100, actions...)
 }
 
@@ -1121,7 +1121,7 @@ func (t *{{$m}}) Set{{ $col.Field.Name }}String(v string) {
 {{- if $col.Index }}
 
 // Find{{$tnp}}By{{ $col.Field.Name }} will find all {{$m}}s by the {{ $col.Field.Name }} value
-func Find{{$tnp}}By{{ $col.Field.Name }}(ctx context.Context, db *sql.DB, value {{ GoTypeWithoutPointer $col }}) ([]*{{$m}}, error) {
+func Find{{$tnp}}By{{ $col.Field.Name }}(ctx context.Context, db DB, value {{ GoTypeWithoutPointer $col }}) ([]*{{$m}}, error) {
 	q := "SELECT {{$cl}} FROM {{$tnt}} WHERE {{$col.SQLColumnNameWithTick}} = ? LIMIT 1"
 	rows, err := db.QueryContext(ctx, q, {{ ConvertFromSQL $pkp }}(value))
 	if err == sql.ErrNoRows {
@@ -1156,7 +1156,7 @@ func Find{{$tnp}}By{{ $col.Field.Name }}(ctx context.Context, db *sql.DB, value 
 }
 
 // Find{{$tnp}}By{{ $col.Field.Name }}Tx will find all {{$m}}s by the {{ $col.Field.Name }} value using the provided transaction
-func Find{{$tnp}}By{{ $col.Field.Name }}Tx(ctx context.Context, tx *sql.Tx, value {{ GoTypeWithoutPointer $col }}) ([]*{{$m}}, error) {
+func Find{{$tnp}}By{{ $col.Field.Name }}Tx(ctx context.Context, tx Tx, value {{ GoTypeWithoutPointer $col }}) ([]*{{$m}}, error) {
 	q := "SELECT {{$cl}} FROM {{$tnt}} WHERE {{$col.SQLColumnNameWithTick}} = ? LIMIT 1"
 	rows, err := tx.QueryContext(ctx, q, {{ ConvertFromSQL $pkp }}(value))
 	if err == sql.ErrNoRows {
@@ -1196,7 +1196,7 @@ func Find{{$tnp}}By{{ $col.Field.Name }}Tx(ctx context.Context, tx *sql.Tx, valu
 {{- if $hpk }}
 
 // Find{{$tns}}By{{ $col.Field.Name }} will find a {{$m}} by {{ $col.Field.Name }}
-func Find{{$tns}}By{{ $col.Field.Name }}(ctx context.Context, db *sql.DB, value {{ GoTypeWithoutPointer $col }}) (*{{$m}}, error) {
+func Find{{$tns}}By{{ $col.Field.Name }}(ctx context.Context, db DB, value {{ GoTypeWithoutPointer $col }}) (*{{$m}}, error) {
 	q := "SELECT {{$cl}} FROM {{$tnt}} WHERE {{$pkc}} = ?"
 	{{- range $ii, $c := $columns }}
 	var _{{ $c.Field.Name }} {{ ConvertToSQL $c }}
@@ -1222,7 +1222,7 @@ func Find{{$tns}}By{{ $col.Field.Name }}(ctx context.Context, db *sql.DB, value 
 }
 
 // Find{{$tns}}By{{ $col.Field.Name }}Tx will find a {{$m}} by {{ $col.Field.Name }} using the provided transaction
-func Find{{$tns}}By{{ $col.Field.Name }}Tx(ctx context.Context, tx *sql.Tx, value {{ GoTypeWithoutPointer $col }}) (*{{$m}}, error) {
+func Find{{$tns}}By{{ $col.Field.Name }}Tx(ctx context.Context, tx Tx, value {{ GoTypeWithoutPointer $col }}) (*{{$m}}, error) {
 	q := "SELECT {{$cl}} FROM {{$tnt}} WHERE {{$pkc}} = ?"
 	{{- range $ii, $c := $columns }}
 	var _{{ $c.Field.Name }} {{ ConvertToSQL $c }}
@@ -1259,28 +1259,28 @@ func (t *{{$m}}) toTimestamp(value time.Time) *timestamp.Timestamp {
 }
 
 // DBCreate{{$m}}Table will create the {{$m}} table
-func DBCreate{{$m}}Table(ctx context.Context, db *sql.DB) error {
+func DBCreate{{$m}}Table(ctx context.Context, db DB) error {
 	q := {{ SQL . }}
 	_, err := db.ExecContext(ctx, q)
 	return err
 }
 
 // DBCreate{{$m}}TableTx will create the {{$m}} table using the provided transction
-func DBCreate{{$m}}TableTx(ctx context.Context, tx *sql.Tx) error {
+func DBCreate{{$m}}TableTx(ctx context.Context, tx Tx) error {
 	q := {{ SQL . }}
 	_, err := tx.ExecContext(ctx, q)
 	return err
 }
 
 // DBDrop{{$m}}Table will drop the {{$m}} table
-func DBDrop{{$m}}Table(ctx context.Context, db *sql.DB) error {
+func DBDrop{{$m}}Table(ctx context.Context, db DB) error {
 	q := "DROP TABLE IF EXISTS {{$tnt}}"
 	_, err := db.ExecContext(ctx, q)
 	return err
 }
 
 // DBDrop{{$m}}TableTx will drop the {{$m}} table using the provided transaction
-func DBDrop{{$m}}TableTx(ctx context.Context, tx *sql.Tx) error {
+func DBDrop{{$m}}TableTx(ctx context.Context, tx Tx) error {
 	q := "DROP TABLE IF EXISTS {{$tnt}}"
 	_, err := tx.ExecContext(ctx, q)
 	return err
@@ -1304,7 +1304,7 @@ func (t *{{$m}}) CalculateChecksum() string {
 {{- end }}
 
 // DBCreate will create a new {{$m}} record in the database
-func (t *{{$m}}) DBCreate(ctx context.Context, db *sql.DB) (sql.Result, error) {
+func (t *{{$m}}) DBCreate(ctx context.Context, db DB) (sql.Result, error) {
 	q := "INSERT INTO {{$tnt}} ({{$cl}}) VALUES ({{.SQLColumnPlaceholders}})"
 	{{- if .HasChecksum }}
 	checksum := t.CalculateChecksum()
@@ -1325,7 +1325,7 @@ func (t *{{$m}}) DBCreate(ctx context.Context, db *sql.DB) (sql.Result, error) {
 }
 
 // DBCreateTx will create a new {{$m}} record in the database using the provided transaction
-func (t *{{$m}}) DBCreateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error) {
+func (t *{{$m}}) DBCreateTx(ctx context.Context, tx Tx) (sql.Result, error) {
 	q := "INSERT INTO {{$tnt}} ({{$cl}}) VALUES ({{.SQLColumnPlaceholders}})"
 	{{- if .HasChecksum }}
 	checksum := t.CalculateChecksum()
@@ -1348,7 +1348,7 @@ func (t *{{$m}}) DBCreateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error)
 {{- if .HasPrimaryKey }}
 
 // DBCreateIgnoreDuplicate will upsert the {{$m}} record in the database
-func (t *{{$m}}) DBCreateIgnoreDuplicate(ctx context.Context, db *sql.DB) (sql.Result, error) {
+func (t *{{$m}}) DBCreateIgnoreDuplicate(ctx context.Context, db DB) (sql.Result, error) {
 	q := "INSERT INTO {{$tnt}} ({{$cl}}) VALUES ({{.SQLColumnPlaceholders}}) ON DUPLICATE KEY UPDATE {{$pkc}} = {{$pkc}}"
 	{{- if .HasChecksum }}
 	checksum := t.CalculateChecksum()
@@ -1369,7 +1369,7 @@ func (t *{{$m}}) DBCreateIgnoreDuplicate(ctx context.Context, db *sql.DB) (sql.R
 }
 
 // DBCreateIgnoreDuplicateTx will upsert the {{$m}} record in the database using the provided transaction
-func (t *{{$m}}) DBCreateIgnoreDuplicateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error) {
+func (t *{{$m}}) DBCreateIgnoreDuplicateTx(ctx context.Context, tx Tx) (sql.Result, error) {
 	q := "INSERT INTO {{$tnt}} ({{$cl}}) VALUES ({{.SQLColumnPlaceholders}}) ON DUPLICATE KEY UPDATE {{$pkc}} = {{$pkc}}"
 	{{- if .HasChecksum }}
 	checksum := t.CalculateChecksum()
@@ -1392,7 +1392,7 @@ func (t *{{$m}}) DBCreateIgnoreDuplicateTx(ctx context.Context, tx *sql.Tx) (sql
 {{- end }}
 
 // DeleteAll{{$tnp}} deletes all {{$m}} records in the database with optional filters
-func DeleteAll{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) error {
+func DeleteAll{{$tnp}}(ctx context.Context, db DB, _params ...interface{}) error {
 	params := []interface{}{
 		orm.Table({{$m}}TableName),
 	}
@@ -1407,7 +1407,7 @@ func DeleteAll{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) 
 }
 
 // DeleteAll{{$tnp}}Tx deletes all {{$m}} records in the database with optional filters using the provided transaction
-func DeleteAll{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}) error {
+func DeleteAll{{$tnp}}Tx(ctx context.Context, tx Tx, _params ...interface{}) error {
 	params := []interface{}{
 		orm.Table({{$m}}TableName),
 	}
@@ -1424,7 +1424,7 @@ func DeleteAll{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}
 {{- if .HasPrimaryKey }}
 
 // DBDelete will delete this {{$m}} record in the database
-func (t *{{$m}}) DBDelete(ctx context.Context, db *sql.DB) (bool, error) {
+func (t *{{$m}}) DBDelete(ctx context.Context, db DB) (bool, error) {
 	q := "DELETE FROM {{$tnt}} WHERE {{$pkc}} = ?"
 	r, err := db.ExecContext(ctx, q, {{ ConvertFromSQL $pkp }}(t.{{$pkp.Field.Name}}))
 	if err != nil && err != sql.ErrNoRows {
@@ -1438,7 +1438,7 @@ func (t *{{$m}}) DBDelete(ctx context.Context, db *sql.DB) (bool, error) {
 }
 
 // DBDeleteTx will delete this {{$m}} record in the database using the provided transaction
-func (t *{{$m}}) DBDeleteTx(ctx context.Context, tx *sql.Tx) (bool, error) {
+func (t *{{$m}}) DBDeleteTx(ctx context.Context, tx Tx) (bool, error) {
 	q := "DELETE FROM {{$tnt}} WHERE {{$pkc}} = ?"
 	r, err := tx.ExecContext(ctx, q, {{ ConvertFromSQL $pkp }}(t.{{$pkp.Field.Name}}))
 	if err != nil && err != sql.ErrNoRows {
@@ -1452,7 +1452,7 @@ func (t *{{$m}}) DBDeleteTx(ctx context.Context, tx *sql.Tx) (bool, error) {
 }
 
 // DBUpdate will update the {{$m}} record in the database
-func (t *{{$m}}) DBUpdate(ctx context.Context, db *sql.DB) (sql.Result, error) {
+func (t *{{$m}}) DBUpdate(ctx context.Context, db DB) (sql.Result, error) {
 	{{- if .HasChecksum }}
 	checksum := t.CalculateChecksum()
 	if t.Get{{.Checksum}}() == checksum {
@@ -1476,7 +1476,7 @@ func (t *{{$m}}) DBUpdate(ctx context.Context, db *sql.DB) (sql.Result, error) {
 }
 
 // DBUpdateTx will update the {{$m}} record in the database using the provided transaction
-func (t *{{$m}}) DBUpdateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error) {
+func (t *{{$m}}) DBUpdateTx(ctx context.Context, tx Tx) (sql.Result, error) {
 	{{- if .HasChecksum }}
 	checksum := t.CalculateChecksum()
 	if t.Get{{.Checksum}}() == checksum {
@@ -1502,7 +1502,7 @@ func (t *{{$m}}) DBUpdateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error)
 {{- end }}
 
 // DBUpsert will upsert the {{$m}} record in the database
-func (t *{{$m}}) DBUpsert(ctx context.Context, db *sql.DB, conditions ...interface{}) (bool, bool, error) {
+func (t *{{$m}}) DBUpsert(ctx context.Context, db DB, conditions ...interface{}) (bool, bool, error) {
 	{{- if .HasChecksum }}
 	checksum := t.CalculateChecksum()
 	if t.Get{{.Checksum}}() == checksum {
@@ -1536,7 +1536,7 @@ func (t *{{$m}}) DBUpsert(ctx context.Context, db *sql.DB, conditions ...interfa
 }
 
 // DBUpsertTx will upsert the {{$m}} record in the database using the provided transaction
-func (t *{{$m}}) DBUpsertTx(ctx context.Context, tx *sql.Tx, conditions ...interface{}) (bool, bool, error) {
+func (t *{{$m}}) DBUpsertTx(ctx context.Context, tx Tx, conditions ...interface{}) (bool, bool, error) {
 	{{- if .HasChecksum }}
 	checksum := t.CalculateChecksum()
 	if t.Get{{.Checksum}}() == checksum {
@@ -1572,7 +1572,7 @@ func (t *{{$m}}) DBUpsertTx(ctx context.Context, tx *sql.Tx, conditions ...inter
 {{- if .HasPrimaryKey }}
 
 // DBFindOne will find a {{$m}} record in the database with the primary key
-func (t *{{$m}}) DBFindOne(ctx context.Context, db *sql.DB, value {{GoTypeWithoutPointer $pkp}}) (bool, error) {
+func (t *{{$m}}) DBFindOne(ctx context.Context, db DB, value {{GoTypeWithoutPointer $pkp}}) (bool, error) {
 	q := "SELECT {{$cl}} FROM {{$tnt}} WHERE {{$pkc}} = ? LIMIT 1"	
 	row := db.QueryRowContext(ctx, q, {{ ConvertFromSQL $pkp }}(value))
 	{{- range $i, $col := $columns }}
@@ -1598,7 +1598,7 @@ func (t *{{$m}}) DBFindOne(ctx context.Context, db *sql.DB, value {{GoTypeWithou
 }
 
 // DBFindOneTx will find a {{$m}} record in the database with the primary key using the provided transaction
-func (t *{{$m}}) DBFindOneTx(ctx context.Context, tx *sql.Tx, value {{GoTypeWithoutPointer $pkp}}) (bool, error) {
+func (t *{{$m}}) DBFindOneTx(ctx context.Context, tx Tx, value {{GoTypeWithoutPointer $pkp}}) (bool, error) {
 	q := "SELECT {{$cl}} FROM {{$tnt}} WHERE {{$pkc}} = ? LIMIT 1"	
 	row := tx.QueryRowContext(ctx, q, {{ ConvertFromSQL $pkp }}(value))
 	{{- range $i, $col := $columns }}
@@ -1626,7 +1626,7 @@ func (t *{{$m}}) DBFindOneTx(ctx context.Context, tx *sql.Tx, value {{GoTypeWith
 {{- end }}
 
 // Find{{$tnp}} will find a {{$m}} record in the database with the provided parameters
-func Find{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) ([]*{{$m}}, error) {
+func Find{{$tnp}}(ctx context.Context, db DB, _params ...interface{}) ([]*{{$m}}, error) {
 	params := []interface{}{
 	{{- range $i, $col := $columns }}
 		orm.Column("{{$col.SQLColumnName}}"),
@@ -1672,7 +1672,7 @@ func Find{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) ([]*{
 }
 
 // Find{{$tnp}}Tx will find a {{$m}} record in the database with the provided parameters using the provided transaction
-func Find{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}) ([]*{{$m}}, error) {
+func Find{{$tnp}}Tx(ctx context.Context, tx Tx, _params ...interface{}) ([]*{{$m}}, error) {
 	params := []interface{}{
 	{{- range $i, $col := $columns }}
 		orm.Column("{{$col.SQLColumnName}}"),
@@ -1718,7 +1718,7 @@ func Find{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}) ([]
 }
 
 // DBFind will find a {{$m}} record in the database with the provided parameters
-func (t *{{$m}}) DBFind(ctx context.Context, db *sql.DB, _params ...interface{}) (bool, error) {
+func (t *{{$m}}) DBFind(ctx context.Context, db DB, _params ...interface{}) (bool, error) {
 	params := []interface{}{
 	{{- range $i, $col := $columns }}
 		orm.Column("{{$col.SQLColumnName}}"),
@@ -1752,7 +1752,7 @@ func (t *{{$m}}) DBFind(ctx context.Context, db *sql.DB, _params ...interface{})
 }
 
 // DBFindTx will find a {{$m}} record in the database with the provided parameters using the provided transaction
-func (t *{{$m}}) DBFindTx(ctx context.Context, tx *sql.Tx, _params ...interface{}) (bool, error) {
+func (t *{{$m}}) DBFindTx(ctx context.Context, tx Tx, _params ...interface{}) (bool, error) {
 	params := []interface{}{
 	{{- range $i, $col := $columns }}
 		orm.Column("{{$col.SQLColumnName}}"),
@@ -1786,7 +1786,7 @@ func (t *{{$m}}) DBFindTx(ctx context.Context, tx *sql.Tx, _params ...interface{
 }
 
 // Count{{$tnp}} will find the count of {{$m}} records in the database
-func Count{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) (int64, error) {
+func Count{{$tnp}}(ctx context.Context, db DB, _params ...interface{}) (int64, error) {
 	params := []interface{}{
 		orm.Count("*"),
 		orm.Table({{$m}}TableName),
@@ -1806,7 +1806,7 @@ func Count{{$tnp}}(ctx context.Context, db *sql.DB, _params ...interface{}) (int
 }
 
 // Count{{$tnp}}Tx will find the count of {{$m}} records in the database using the provided transaction
-func Count{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}) (int64, error) {
+func Count{{$tnp}}Tx(ctx context.Context, tx Tx, _params ...interface{}) (int64, error) {
 	params := []interface{}{
 		orm.Count("*"),
 		orm.Table({{$m}}TableName),
@@ -1826,7 +1826,7 @@ func Count{{$tnp}}Tx(ctx context.Context, tx *sql.Tx, _params ...interface{}) (i
 }
 
 // DBCount will find the count of {{$m}} records in the database
-func (t *{{$m}}) DBCount(ctx context.Context, db *sql.DB, _params ...interface{}) (int64, error) {
+func (t *{{$m}}) DBCount(ctx context.Context, db DB, _params ...interface{}) (int64, error) {
 	params := []interface{}{
 		orm.CountAlias("*", "count"),
 		orm.Table({{$m}}TableName),
@@ -1846,7 +1846,7 @@ func (t *{{$m}}) DBCount(ctx context.Context, db *sql.DB, _params ...interface{}
 }
 
 // DBCountTx will find the count of {{$m}} records in the database using the provided transaction
-func (t *{{$m}}) DBCountTx(ctx context.Context, tx *sql.Tx, _params ...interface{}) (int64, error) {
+func (t *{{$m}}) DBCountTx(ctx context.Context, tx Tx, _params ...interface{}) (int64, error) {
 	params := []interface{}{
 		orm.CountAlias("*", "count"),
 		orm.Table({{$m}}TableName),
@@ -1868,7 +1868,7 @@ func (t *{{$m}}) DBCountTx(ctx context.Context, tx *sql.Tx, _params ...interface
 {{- if .HasPrimaryKey }}
 
 // DBExists will return true if the {{$m}} record exists in the database
-func (t *{{$m}}) DBExists(ctx context.Context, db *sql.DB) (bool, error) {
+func (t *{{$m}}) DBExists(ctx context.Context, db DB) (bool, error) {
 	q := "SELECT {{$pkc}} FROM {{$tnt}} WHERE {{$pkc}} = ? LIMIT 1"	
 	var _{{$pkp.Name}} sql.NullString
 	err := db.QueryRowContext(ctx, q, {{ ConvertFromSQL $pkp }}(t.{{$pkp.Name}})).Scan(&_{{$pkp.Name}})
@@ -1879,7 +1879,7 @@ func (t *{{$m}}) DBExists(ctx context.Context, db *sql.DB) (bool, error) {
 }
 
 // DBExistsTx will return true if the {{$m}} record exists in the database using the provided transaction
-func (t *{{$m}}) DBExistsTx(ctx context.Context, tx *sql.Tx) (bool, error) {
+func (t *{{$m}}) DBExistsTx(ctx context.Context, tx Tx) (bool, error) {
 	q := "SELECT {{$pkc}} FROM {{$tnt}} WHERE {{$pkc}} = ? LIMIT 1"	
 	var _{{$pkp.Name}} sql.NullString
 	err := tx.QueryRowContext(ctx, q, {{ ConvertFromSQL $pkp }}(t.{{$pkp.Name}})).Scan(&_{{$pkp.Name}})
@@ -2206,7 +2206,7 @@ var (
 	password string
 	hostname string
 	port     int
-	db       *sql.DB
+	db       DB
 	createdb = true
 )
 
@@ -2220,7 +2220,7 @@ func init() {
 	database = defdb
 }
 
-func GetDatabase() *sql.DB {
+func GetDatabase() DB {
 	return db
 }
 
@@ -2228,7 +2228,7 @@ func GetDSN(name string) string {
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", username, password, hostname, port, name)
 }
 
-func openDB(name string) *sql.DB {
+func openDB(name string) DB {
 	dsn := GetDSN(name)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -2240,7 +2240,7 @@ func openDB(name string) *sql.DB {
 
 func dropDB() {
 	if createdb {
-		_, err := db.Exec(fmt.Sprintf("drop database %s", database))
+		_, err := db.ExecContext(context.Background(), fmt.Sprintf("drop database %s", database))
 		if err != nil {
 			fmt.Printf("error dropping database named %s\n", database)
 		}
@@ -2262,7 +2262,7 @@ func TestMain(m *testing.M) {
 	if createdb {
 		// open without a database so we can create a temp one
 		d := openDB("")
-		_, err := d.Exec(fmt.Sprintf("create database %s", database))
+		_, err := d.ExecContext(context.Background(), fmt.Sprintf("create database %s", database))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -2618,20 +2618,44 @@ func Deserialize(r io.Reader, dser Deserializer) error {
 	return orm.Deserialize(r, dser)
 }
 
+// DB is an interface to the db
+type DB interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
+
+	Begin() Tx
+
+	Close() error
+}
+
+// Tx is an interface to a DB transaction
+type Tx interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row)
+
+	Commit() error
+
+	Rollback() error
+}
+
 // Model is an interface for describing a DB model object
 type Model interface {
 
 	// TableName is the SQL name of the table
 	TableName() string
 
-	DBCreate(ctx context.Context, db *sql.DB) (sql.Result, error)
-	DBCreateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error)
+	DBCreate(ctx context.Context, db DB) (sql.Result, error)
+	DBCreateTx(ctx context.Context, tx Tx) (sql.Result, error)
 
-	DBUpsert(ctx context.Context, db *sql.DB, conditions ...interface{}) (bool, bool, error)
-	DBUpsertTx(ctx context.Context, tx *sql.Tx, conditions ...interface{}) (bool, bool, error)
+	DBUpsert(ctx context.Context, db DB, conditions ...interface{}) (bool, bool, error)
+	DBUpsertTx(ctx context.Context, tx Tx, conditions ...interface{}) (bool, bool, error)
 
-	DBUpdate(ctx context.Context, db *sql.DB) (sql.Result, error)
-	DBUpdateTx(ctx context.Context, tx *sql.Tx) (sql.Result, error)
+	DBUpdate(ctx context.Context, db DB) (sql.Result, error)
+	DBUpdateTx(ctx context.Context, tx Tx) (sql.Result, error)
 }
 
 // ModelWithPrimaryKey is an interface for describing a DB model object that has a primary key
@@ -2641,17 +2665,17 @@ type ModelWithPrimaryKey interface {
 	PrimaryKeyColumnType() string
 	PrimaryKey() interface{}
 
-	DBDelete(ctx context.Context, db *sql.DB) (bool, error)
-	DBDeleteTx(ctx context.Context, tx *sql.Tx) (bool, error)
+	DBDelete(ctx context.Context, db DB) (bool, error)
+	DBDeleteTx(ctx context.Context, tx Tx) (bool, error)
 
-	DBExists(ctx context.Context, db *sql.DB) (bool, error)
-	DBExistsTx(ctx context.Context, tx *sql.Tx) (bool, error)
+	DBExists(ctx context.Context, db DB) (bool, error)
+	DBExistsTx(ctx context.Context, tx Tx) (bool, error)
 
-	DBFind(ctx context.Context, db *sql.DB, _params ...interface{}) (bool, error)
-	DBFindTx(ctx context.Context, tx *sql.Tx, _params ...interface{}) (bool, error)
+	DBFind(ctx context.Context, db DB, _params ...interface{}) (bool, error)
+	DBFindTx(ctx context.Context, tx Tx, _params ...interface{}) (bool, error)
 
-	DBCount(ctx context.Context, db *sql.DB, _params ...interface{})
-	DBCountTx(ctx context.Context, tx *sql.Tx, _params ...interface{})
+	DBCount(ctx context.Context, db DB, _params ...interface{})
+	DBCountTx(ctx context.Context, tx Tx, _params ...interface{})
 }
 
 // Checksum is an interface for describing checking the contents of the model for equality
